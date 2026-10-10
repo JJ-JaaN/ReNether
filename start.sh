@@ -111,7 +111,13 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" 
       "$PHP" -dphar.readonly=0 "$ROOT/scripts/ensure_phar_vendor.php" "$PWD" "$output"
     )
   done
+
 fi
+
+# Retrofit already built PHARs too; this does not force a Composer reinstall.
+# The patched methods do not use the former TypeConverter argument.
+"$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
+  "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/xBedwars.phar"
 
 if [[ $EUID -eq 0 ]]; then
   systemctl start mariadb
