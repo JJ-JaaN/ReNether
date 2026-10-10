@@ -77,7 +77,16 @@ php_composer(){
   "$PHP" "$COMPOSER" "$@"
 }
 
-if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/xBedwars.phar" || "${NG_REBUILD:-0}" == 1 ]]; then
+phar_has_vendor(){
+  local path="$1"
+  [[ -s "$path" ]] && "$PHP" -r 'try { $p = new Phar($argv[1]); exit(isset($p["vendor/autoload.php"]) ? 0 : 1); } catch (Throwable $e) { exit(1); }' "$path" >/dev/null 2>&1
+}
+
+# Older starter builds succeeded despite producing plugin PHARs without Composer's autoloader.
+# Rebuild automatically if we detect one, even when NG_REBUILD was not explicitly requested.
+if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/xBedwars.phar" || "${NG_REBUILD:-0}" == 1 ]] ||
+   ! phar_has_vendor "$DATA/plugins/NGEssentials.phar" ||
+   ! phar_has_vendor "$DATA/plugins/xBedwars.phar"; then
   log "Compiling PocketMine and NetherGames plugins (experimental, may fail)"
   (
     cd "$SOURCES/axolotl"
@@ -96,7 +105,10 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" 
       else
         output="$DATA/plugins/NGEssentials.phar"
       fi
+      [[ -f vendor/autoload.php ]] || die "Composer did not create $plugin/vendor/autoload.php"
       "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- --make . --relative . --out "$output"
+      # Include Composer dependencies, including path-repository symlinks, which can be omitted by DevTools.
+      "$PHP" -dphar.readonly=0 "$ROOT/scripts/ensure_phar_vendor.php" "$PWD" "$output"
     )
   done
 fi
@@ -158,7 +170,7 @@ YAML
 chmod 600 "$CREDENTIALS"
 
 if [[ "${NG_BUILD_ONLY:-0}" == 1 ]]; then
-  log "Build and setup attempted. Not a verified compatible server."
+  log "Build prepared and PHAR Composer autoloaders checked. Runtime compatibility NOT verified."
   exit 0
 fi
 log "Starting experimental new-ng on UDP $PORT (NO Docker)"
