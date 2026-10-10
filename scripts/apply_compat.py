@@ -26,6 +26,17 @@ def modify(name: str, anchor: str, replacement: str, guard: str):
     path.write_text(source.replace(anchor, replacement, 1))
     changes.append(name)
 
+# NetherGames libVanilla reserves three vanilla item types not defined in
+# Axolotl-PM 5.49.1. Keep upstream numeric IDs and move the dynamic allocator
+# forward to prevent custom items from colliding with CROSSBOW/ELYTRA/SHIELD.
+name = "src/item/ItemTypeIds.php"
+anchor = "\tpublic const FIRST_UNUSED_ITEM_ID = 20326;"
+modify(name, anchor, "\tpublic const CROSSBOW = 20326;\n"
+                    "\tpublic const ELYTRA = 20327;\n"
+                    "\tpublic const SHIELD = 20328;\n"
+                    "\n\tpublic const FIRST_UNUSED_ITEM_ID = 20329;",
+       "public const CROSSBOW = 20326;")
+
 name = "src/network/mcpe/NetworkSession.php"
 anchor = "\tpublic function getTypeConverter() : TypeConverter{ return $this->typeConverter; }"
 modify(name, anchor,
