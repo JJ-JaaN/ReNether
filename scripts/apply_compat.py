@@ -90,6 +90,37 @@ modify(name, anchor, anchor + r"""
 		}
 	}""", "public static function broadcastByTypeConverter(")
 
+# Axolotl-PM is single-protocol; NetherGames plugins enumerate per-protocol
+# converters and subscribe to their creation. Implement the compatible API
+# using Axolotl's existing singleton, without pretending to support old clients.
+name = "src/network/mcpe/convert/TypeConverter.php"
+anchor = "\tuse SingletonTrait;"
+modify(name, anchor, anchor + r"""
+
+	/** @var list<\Closure(self): void> */
+	private static array $compatCreationListeners = [];
+
+	/** Only the current Bedrock protocol is supported by Axolotl-PM. */
+	public static function getAll() : array{
+		return [\pocketmine\network\mcpe\protocol\ProtocolInfo::CURRENT_PROTOCOL => self::getInstance()];
+	}
+
+	/** @param \Closure(self): void $listener */
+	public static function addCreationListener(\Closure $listener) : void{
+		self::$compatCreationListeners[] = $listener;
+	}
+
+	public function getProtocolId() : int{
+		return \pocketmine\network\mcpe\protocol\ProtocolInfo::CURRENT_PROTOCOL;
+	}
+""", "private static array $compatCreationListeners")
+
+anchor = "\t\t$this->skinAdapter = new LegacySkinAdapter();"
+modify(name, anchor, anchor + r"""
+		foreach(self::$compatCreationListeners as $listener){
+			$listener($this);
+		}""", "foreach(self::$compatCreationListeners as $listener)")
+
 name = "src/event/player/PlayerCreationEvent.php"
 anchor = "\tpublic function __construct(private NetworkSession $session){}"
 modify(name, anchor, r"""	/** @var list<\pocketmine\promise\Promise> */
