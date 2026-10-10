@@ -9,7 +9,8 @@ declare(strict_types=1);
  * that unused parameter preserves their behavior on Axolotl.
  *
  * Also replaces the single libVanilla BlockBreakInfo::hoe() call with its
- * equivalent Axolotl-compatible BlockBreakInfo construction.
+ * equivalent Axolotl-compatible BlockBreakInfo construction, and aligns
+ * libReplay packet methods with Axolotl's single-protocol DataPacket ABI.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -65,6 +66,38 @@ foreach (array_slice($argv, 1) as $path) {
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing libVanilla MissingVanillaBlocks from NGEssentials PHAR.\n");
         exit(1);
+    }
+    // NetherGames BedrockProtocol passes an explicit protocol ID to
+    // DataPacket::decodePayload()/encodePayload(). Axolotl's DataPacket
+    // doesn't, and these two libReplay packet implementations do not use it.
+    foreach (['BlockChangePacket', 'PlayerInformationPacket'] as $packet) {
+        $member = "vendor/nethergamesmc/libreplay/protocol/$packet.php";
+        if (!isset($phar[$member])) {
+            continue;
+        }
+        $content = $phar[$member]->getContent();
+        $pairs = [
+            'decodePayload(ByteBufferReader $in, int $protocolId): void' =>
+                'decodePayload(ByteBufferReader $in): void',
+            'encodePayload(ByteBufferWriter $out, int $protocolId): void' =>
+                'encodePayload(ByteBufferWriter $out): void',
+        ];
+        $newContent = $content;
+        foreach ($pairs as $before => $after) {
+            if (str_contains($newContent, $after)) {
+                continue;
+            }
+            if (substr_count($newContent, $before) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected $packet method signature, refusing change.\n");
+                exit(1);
+            }
+            $newContent = str_replace($before, $after, $newContent);
+        }
+        if ($newContent !== $content) {
+            $updated[$member] = $newContent;
+        } else {
+            echo "[new-ng] Already compatible: " . basename($path) . " / $packet\n";
+        }
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
