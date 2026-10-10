@@ -114,6 +114,10 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" 
 
 fi
 
+# Keep PocketMine's TypeConverter compatible even when the PHAR was built before this patch.
+"$PHP" -dphar.readonly=0 "$ROOT/scripts/sync_typeconverter_phar.php" \
+  "$SOURCES/axolotl/src/network/mcpe/convert/TypeConverter.php" "$DATA/PocketMine-MP.phar"
+
 # Retrofit already built PHARs too; this does not force a Composer reinstall.
 # The patched methods do not use the former TypeConverter argument.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
