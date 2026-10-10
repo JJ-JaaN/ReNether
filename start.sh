@@ -11,7 +11,7 @@ PHP_HOME="$STATE/php"
 PHP="$PHP_HOME/bin/php7/bin/php"
 COMPOSER="$CACHE/composer.phar"
 DEVTOOLS="$CACHE/DevTools.phar"
-PORT="NG_PORT:-19133"
+PORT="${NG_PORT:-19133}"
 mkdir -p "$STATE" "$CACHE" "$SOURCES" "$DATA/plugins" "$DATA/worlds" "$DATA/plugin_data/NGEssentials/credentials" "$PHP_HOME"
 chmod 700 "$STATE"
 log(){ printf '[new-ng] %s\n' "$*"; }
@@ -67,17 +67,17 @@ if [[ ! -f "$DEVTOOLS" ]]; then
 fi
 
 php_composer(){
-  local token="GITHUB_TOKEN:-"
+  local token="${GITHUB_TOKEN:-}"
   if [[ -z "$token" && -r /root/.config/bethergames/github-token ]]; then
     token="$(cat /root/.config/bethergames/github-token)"
   fi
   if [[ -n "$token" ]]; then
-    export COMPOSER_AUTH="{\"github-oauth\":{\"github.com\":\"$token\}}"
+    export COMPOSER_AUTH="{\"github-oauth\":{\"github.com\":\"$token\"}}"
   fi
   "$PHP" "$COMPOSER" "$@"
 }
 
-if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/xBedwars.phar" || "NG_REBUILD:-0" == 1 ]]; then
+if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/xBedwars.phar" || "${NG_REBUILD:-0}" == 1 ]]; then
   log "Compiling PocketMine and NetherGames plugins (experimental, may fail)"
   (
     cd "$SOURCES/axolotl"
@@ -115,7 +115,7 @@ if [[ ! -f "$STATE/mysql-password" ]]; then
   chmod 600 "$STATE/mysql-password"
 fi
 DB_PASS="$(cat "$STATE/mysql-password")"
-"DATABASE[@]" <<SQL
+"${DATABASE[@]}" <<SQL
 CREATE DATABASE IF NOT EXISTS newng CHARACTER SET utf8mb4;
 CREATE USER IF NOT EXISTS 'newng'@'localhost' IDENTIFIED BY '$DB_PASS';
 CREATE USER IF NOT EXISTS 'newng'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
@@ -124,10 +124,10 @@ GRANT ALL PRIVILEGES ON newng.* TO 'newng'@'127.0.0.1';
 FLUSH PRIVILEGES;
 SQL
 if [[ ! -f "$STATE/db-initialized" ]]; then
-  TABLES="$("DATABASE[@]" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='newng';")"
+  TABLES="$("${DATABASE[@]}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='newng';")"
   [[ "$TABLES" == 0 ]] || die "Database newng is not empty: refusing automatic schema import"
-  "DATABASE[@]" newng < "$SOURCES/plugins/NGEssentials/ngdata_players.sql"
-  "DATABASE[@]" newng < "$SOURCES/plugins/NGEssentials/resources/stored_procedures.sql"
+  "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/ngdata_players.sql"
+  "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/resources/stored_procedures.sql"
   touch "$STATE/db-initialized"
 fi
 
@@ -157,7 +157,7 @@ kafka_ip: ""
 YAML
 chmod 600 "$CREDENTIALS"
 
-if [[ "NG_BUILD_ONLY:-0" == 1 ]]; then
+if [[ "${NG_BUILD_ONLY:-0}" == 1 ]]; then
   log "Build and setup attempted. Not a verified compatible server."
   exit 0
 fi
