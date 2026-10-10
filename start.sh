@@ -9,7 +9,7 @@ CACHE="$ROOT/.cache"
 DATA="$STATE/data"
 PHP_HOME="$STATE/php"
 PHP="$PHP_HOME/bin/php7/bin/php"
-COMPOSER="$CACHE/composer.phar"
+COMPOSER_PHAR="$CACHE/composer.phar"
 DEVTOOLS="$CACHE/DevTools.phar"
 PORT="${NG_PORT:-19133}"
 mkdir -p "$STATE" "$CACHE" "$SOURCES" "$DATA/plugins" "$DATA/worlds" "$DATA/plugin_data/NGEssentials/credentials" "$PHP_HOME"
@@ -59,8 +59,8 @@ fi
 python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
 bash "$ROOT/scripts/migrate_assets.sh" "$SOURCES/assets" "$DATA"
 
-if [[ ! -f "$COMPOSER" ]]; then
-  curl -fL --retry 3 -o "$COMPOSER" https://getcomposer.org/composer-stable.phar
+if [[ ! -f "$COMPOSER_PHAR" ]]; then
+  curl -fL --retry 3 -o "$COMPOSER_PHAR" https://getcomposer.org/composer-stable.phar
 fi
 if [[ ! -f "$DEVTOOLS" ]]; then
   curl -fL --retry 3 -o "$DEVTOOLS" https://github.com/pmmp/DevTools/releases/download/1.17.2/DevTools.phar
@@ -74,7 +74,7 @@ php_composer(){
   if [[ -n "$token" ]]; then
     export COMPOSER_AUTH="{\"github-oauth\":{\"github.com\":\"$token\"}}"
   fi
-  "$PHP" "$COMPOSER" "$@"
+  "$PHP" "$COMPOSER_PHAR" "$@"
 }
 
 phar_has_vendor(){
