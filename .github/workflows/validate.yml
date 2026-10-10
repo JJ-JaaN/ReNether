@@ -1,0 +1,17 @@
+name: Validate source
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          bash -n start.sh
+          bash -n scripts/migrate_assets.sh
+      - name: Python syntax
+        run: python3 -m py_compile scripts/apply_compat.py
+      - name: Verify license notices
+        run: test -s ATTRIBUTION.md && test -s README.md
