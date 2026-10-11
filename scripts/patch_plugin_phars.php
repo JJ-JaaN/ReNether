@@ -13,6 +13,7 @@ declare(strict_types=1);
  * libReplay packet methods with Axolotl's single-protocol DataPacket ABI.
  * NGEssentials login protocol acceptance is restricted to the current protocol.
  * Duplicate player-creation callbacks are ignored to preserve the first error.
+ * Historical protocol gates retain NetherGames' original numeric thresholds.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -159,6 +160,45 @@ PHP;
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGEssentials EventListener in PHAR.\n");
         exit(1);
+    }
+    // NetherGames' BedrockProtocol defines historical PROTOCOL_1_* constants;
+    // Axolotl's one-protocol BedrockProtocol doesn't. Preserve the actual
+    // upstream protocol numeric thresholds rather than bypassing version gates.
+    // This does not add multiversion compatibility.
+    $historicalProtocols = [
+        'ProtocolInfo::PROTOCOL_1_20_10' => '594',
+        'ProtocolInfo::PROTOCOL_1_20_50' => '630',
+        'ProtocolInfo::PROTOCOL_1_20_60' => '649',
+        'ProtocolInfo::PROTOCOL_1_21_50' => '766',
+        'ProtocolInfo::PROTOCOL_1_21_60' => '776',
+        'ProtocolInfo::PROTOCOL_1_21_70' => '786',
+        'ProtocolInfo::PROTOCOL_1_21_90' => '818',
+    ];
+    $protocolMembers = [
+        'src/NetherGames/NGEssentials/EventListener.php',
+        'src/NetherGames/NGEssentials/player/NGPlayer.php',
+        'src/NetherGames/NGEssentials/item/component/IconComponent.php',
+        'vendor/nethergamesmc/libvanilla/listener/ElytraListener.php',
+        'vendor/nethergamesmc/libforms/CustomForm.php',
+        'vendor/nethergamesmc/libreplay/session/replay/Replay.php',
+    ];
+    foreach ($protocolMembers as $member) {
+        if (!isset($phar[$member])) {
+            if (basename($path) === 'NGEssentials.phar' && str_starts_with($member, 'src/NetherGames/NGEssentials/')) {
+                fwrite(STDERR, "ERROR: Missing NGEssentials protocol member: $member\n");
+                exit(1);
+            }
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $newContent = str_replace(array_keys($historicalProtocols), array_values($historicalProtocols), $content);
+        if (preg_match('/ProtocolInfo::PROTOCOL_[A-Z0-9_]+/', $newContent, $match)) {
+            fwrite(STDERR, "ERROR: Unmapped protocol version $match[0] in $member.\n");
+            exit(1);
+        }
+        if ($newContent !== $content) {
+            $updated[$member] = $newContent;
+        }
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
