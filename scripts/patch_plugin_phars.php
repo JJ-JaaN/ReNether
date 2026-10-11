@@ -12,6 +12,7 @@ declare(strict_types=1);
  * equivalent Axolotl-compatible BlockBreakInfo construction, and aligns
  * libReplay packet methods with Axolotl's single-protocol DataPacket ABI.
  * NGEssentials login protocol acceptance is restricted to the current protocol.
+ * Duplicate player-creation callbacks are ignored to preserve the first error.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -119,6 +120,41 @@ foreach (array_slice($argv, 1) as $path) {
             exit(1);
         } else {
             echo "[new-ng] Already compatible: " . basename($path) . " / LoginPacket protocol check\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGEssentials EventListener in PHAR.\n");
+        exit(1);
+    }
+    // PlayerData::loadPlayerData() may invoke its completion callback again
+    // if the PromiseResolver's first onSuccess listener throws. Avoid turning
+    // the original exception into an additional double-resolution crash.
+    // This does NOT conceal or fix the original exception, which is logged
+    // by PlayerData's error handler.
+    $member = 'src/NetherGames/NGEssentials/EventListener.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        $callback = function (bool $success) use ($resolver): void {
+            $resolver->resolve(null);
+        };
+PHP;
+        $after = <<<'PHP'
+        $resolved = false;
+        $callback = function (bool $success) use ($resolver, &$resolved): void {
+            if ($resolved) {
+                return;
+            }
+            $resolved = true;
+            $resolver->resolve(null);
+        };
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / player creation promise guard\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected player creation callback in $member; refusing change.\n");
+            exit(1);
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGEssentials EventListener in PHAR.\n");
