@@ -132,6 +132,26 @@ modify(name, anchor, anchor + r"""
 			$listener($this);
 		}""", "foreach(self::$compatCreationListeners as $listener)")
 
+# NetherGames MySQL cleanup uses Server::hasForceShutdown() to skip
+# waiting for pending queries during a crash, while still flushing normally.
+# Mirror NetherGames' flag semantics: force shutdown while still running
+# means forced; a routine shutdown remains false.
+name = "src/Server.php"
+anchor = "\tprivate bool $hasStopped = false;"
+modify(name, anchor, anchor + "\n\tprivate bool $hasForceShutdown = false;",
+       "private bool $hasForceShutdown = false;")
+
+anchor = "\tpublic function isRunning() : bool{\n\t\treturn $this->isRunning;\n\t}"
+modify(name, anchor, anchor + r"""
+
+	public function hasForceShutdown() : bool{
+		return $this->hasForceShutdown;
+	}""", "public function hasForceShutdown()")
+
+anchor = "\t\t\t$this->logger->emergency($this->language->translate(KnownTranslationFactory::pocketmine_server_forcingShutdown()));"
+modify(name, anchor, anchor + "\n\t\t\t$this->hasForceShutdown = true;",
+       "$this->hasForceShutdown = true;")
+
 name = "src/event/player/PlayerCreationEvent.php"
 anchor = "\tpublic function __construct(private NetworkSession $session){}"
 modify(name, anchor, r"""	/** @var list<\pocketmine\promise\Promise> */
