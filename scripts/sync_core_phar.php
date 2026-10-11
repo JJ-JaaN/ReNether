@@ -21,6 +21,11 @@ $required = [
         'private static array $compatCreationListeners',
         'public static function getAll()',
     ],
+    'src/Server.php' => [
+        'private bool $hasForceShutdown = false;',
+        'public function hasForceShutdown()',
+        '$this->hasForceShutdown = true;',
+    ],
     'src/item/ItemTypeIds.php' => [
         'public const CROSSBOW = 20326;',
         'public const ELYTRA = 20327;',
