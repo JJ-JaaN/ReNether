@@ -11,6 +11,7 @@ declare(strict_types=1);
  * Also replaces the single libVanilla BlockBreakInfo::hoe() call with its
  * equivalent Axolotl-compatible BlockBreakInfo construction, and aligns
  * libReplay packet methods with Axolotl's single-protocol DataPacket ABI.
+ * NGEssentials login protocol acceptance is restricted to the current protocol.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -98,6 +99,30 @@ foreach (array_slice($argv, 1) as $path) {
         } else {
             echo "[new-ng] Already compatible: " . basename($path) . " / $packet\n";
         }
+    }
+    // NetherGames PocketMine supports multiple protocols and exposes
+    // ProtocolInfo::ACCEPTED_PROTOCOL; Axolotl only supports CURRENT_PROTOCOL.
+    // Keep strict protocol validation and avoid referencing the absent constant.
+    $member = 'src/NetherGames/NGEssentials/EventListener.php';
+    if (isset($phar[$member])) {
+        $content = $phar[$member]->getContent();
+        $before = 'ProtocolInfo::ACCEPTED_PROTOCOL';
+        $after = '[ProtocolInfo::CURRENT_PROTOCOL]';
+        if (str_contains($content, $before)) {
+            if (substr_count($content, $before) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected count of protocol acceptance checks in $member.\n");
+                exit(1);
+            }
+            $updated[$member] = str_replace($before, $after, $content);
+        } elseif (!str_contains($content, $after)) {
+            fwrite(STDERR, "ERROR: Protocol validation signature unexpected in $member.\n");
+            exit(1);
+        } else {
+            echo "[new-ng] Already compatible: " . basename($path) . " / LoginPacket protocol check\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGEssentials EventListener in PHAR.\n");
+        exit(1);
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
