@@ -1,6 +1,6 @@
 # new-ng (privatni razvojni projekt)
 
-Pokušaj migracije NetherGames BedWars + NGEssentials na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Mape se pri prvom pokretanju dohvaćaju iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets) i kopiraju bez prepisivanja postojećih.
+Pokušaj migracije NetherGames BedWars + NGEssentials na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
 
 **Status: eksperimentalno. Nije potvrđena kompatibilnost niti uspješan rad BedWarsa.** Starter prenosi dio potrebnih API-ja, ali NetherGamesovi plugini očekuju starije `ProtocolInfo::PROTOCOL_*` konstante, različite klase te druge izmjene. Ne gasiti postojeći Docker BedWars dok novi build i testovi ne prođu.
 
@@ -13,7 +13,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-`start.sh` tijekom prvog pokretanja instalira potrebne Ubuntu pakete kada ima administratorske dozvole, priprema lokalnu MariaDB, preuzima PHP runtime, Composer i DevTools, klonira Axolotl, NetherGames plugin source i samo BedWars world assete, pokušava složiti `.phar` datoteke te pokreće poslužitelj na **UDP 19133**. To je razvojni pokušaj i može stati zbog stvarnih API nekompatibilnosti; u tom slučaju ispisat će grešku umjesto lažne poruke o uspjehu.
+`start.sh` tijekom prvog pokretanja instalira potrebne Ubuntu pakete kada ima administratorske dozvole, priprema lokalnu MariaDB, preuzima PHP runtime, Composer i DevTools, klonira Axolotl, NetherGames plugin source i Lobby + BedWars world assete, pokušava složiti `.phar` datoteke te pokreće poslužitelj na **UDP 19133**. To je razvojni pokušaj i može stati zbog stvarnih API nekompatibilnosti; u tom slučaju ispisat će grešku umjesto lažne poruke o uspjehu.
 
 Za korištenje porta 19132 nakon gašenja starog poslužitelja: `NG_PORT=19132 ./start.sh`. Za novi build: `NG_REBUILD=1 ./start.sh`. Za build bez pokretanja: `NG_BUILD_ONLY=1 ./start.sh`.
 
@@ -21,10 +21,39 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
+
+## Ponovna migracija iz starog BedWars Hub-a
+
+Ako je raniji `new-ng` postavio BedWars waiting mapu kao `worlds/Hub`,
+**najprije ugasi server** naredbom `stop` u konzoli (ili kroz tmux).
+Zatim:
+
+```bash
+cd ~/new-ng
+git pull
+NG_REMIGRATE_ASSETS=1 NG_PORT=19133 bash ./start.sh 2>&1 | tee remigrate.log
+```
+
+Ovo zamjenjuje originalima **samo** `worlds/Hub`, `worlds/ArcadeLobby`,
+`plugin_data/xBedwars/arenas`, `arenas.yml`, `WaitingLobby` i kopiju
+licence. Stare verzije sprema u `.runtime/asset-backups/<UTC-datum>.<oznaka>/`
+prije zamjene, a baza igrača, PHP pluginovi i konfiguracija NGEssentials
+ostaju netaknuti. Prije kopiranja provjerava da Axolotl nema aktivan
+`server.lock`, tako da ne zamjenjuje učitane svjetove.
+
+**Bez** `NG_REMIGRATE_ASSETS=1` starter uvijek čuva postojeće svjetove;
+kopira samo one koji nedostaju. Za migraciju bez pokretanja poslužitelja
+možeš dodati `NG_BUILD_ONLY=1`.
+
+Ovo instalira **originalnu mapu** Network Hub-a, ali ne i sve funkcije
+originalnog Lobby servera. Trenutačno se izvršavaju `NGEssentials` i
+`xBedwars`, bez `xLobby` plugina. Stari NPC-jevi, teleporti između
+gamemodeova i mrežni izbornici neće automatski raditi samo zbog mape.
+
 ## Što je uključeno
 
 - `scripts/apply_compat.py`: početni LGPL kompatibilnosni patch za Axolotl izvorni kod (samo jedan Bedrock protokol).
-- `scripts/migrate_assets.sh`: prijenos originalnih BedWars mapa, `arenas.yml` i `WaitingLobby`, uz CC BY 4.0 atribuciju.
+- `scripts/migrate_assets.sh`: originalni Network `Hub` i `ArcadeLobby`, sve BedWars arene, `arenas.yml` i zasebni `WaitingLobby`, uz CC BY 4.0 atribuciju; sigurna remigracija s backupom.
 - `start.sh`: instalacija, build, baza, konfiguracija i pokretanje jednim pozivom.
 - `ATTRIBUTION.md`: autori, izvori, licence i ograničenja.
 
