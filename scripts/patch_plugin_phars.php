@@ -14,6 +14,7 @@ declare(strict_types=1);
  * NGEssentials login protocol acceptance is restricted to the current protocol.
  * Duplicate player-creation callbacks are ignored to preserve the first error.
  * Historical protocol gates retain NetherGames' original numeric thresholds.
+ * Fence blockstates and full-chunk serialization use Axolotl's APIs.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -199,6 +200,69 @@ PHP;
         if ($newContent !== $content) {
             $updated[$member] = $newContent;
         }
+    }
+    // libVanilla registers BambooFence (a pocketmine\block\Fence) using
+    // mapSimple(), yielding an invalid empty-state blockstate. Modern Bedrock
+    // palettes require the four horizontal connection flags. Register fences
+    // with Axolotl's existing property model instead of masking missing IDs.
+    $member = 'vendor/nethergamesmc/libvanilla/utils/BlockRegistrationHelper.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $beforeImport = 'use pocketmine\block\FenceGate;';
+        $afterImport = "use pocketmine\\block\\Fence;\n" . $beforeImport;
+        $beforeMapping = <<<'PHP'
+        } elseif ($block instanceof FenceGate) {
+            $registrar->mapModel(Model::create($block, $id)->properties($commonProps->fenceGateProperties));
+PHP;
+        $afterMapping = <<<'PHP'
+        } elseif ($block instanceof Fence) {
+            $registrar->mapModel(Model::create($block, $id)->properties($commonProps->horizontalConnectionProperties));
+        } elseif ($block instanceof FenceGate) {
+            $registrar->mapModel(Model::create($block, $id)->properties($commonProps->fenceGateProperties));
+PHP;
+        if (str_contains($content, $afterMapping) && str_contains($content, $afterImport)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Fence blockstates\n";
+        } elseif (substr_count($content, $beforeMapping) === 1 && substr_count($content, $beforeImport) === 1) {
+            $content = str_replace($beforeImport, $afterImport, $content);
+            $content = str_replace($beforeMapping, $afterMapping, $content);
+            $updated[$member] = $content;
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected libVanilla fence registration in $member; refusing change.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing libVanilla BlockRegistrationHelper in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
+    // Axolotl 5.49.1 ChunkSerializer expects BlockTranslator instead of
+    // NetherGames' TypeConverter. The latter exposes the former directly.
+    $member = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+$emptyChunk = ChunkSerializer::serializeFullChunk(
+                $chunk = new Chunk([], true),
+                $dimensionId,
+                $session->getTypeConverter(),
+PHP;
+        $after = <<<'PHP'
+$emptyChunk = ChunkSerializer::serializeFullChunk(
+                $chunk = new Chunk([], true),
+                $dimensionId,
+                $session->getTypeConverter()->getBlockTranslator(),
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / ChunkSerializer translator\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected NGPlayer chunk serialization in $member; refusing change.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGPlayer in NGEssentials PHAR.\n");
+        exit(1);
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
