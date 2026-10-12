@@ -153,6 +153,15 @@ if [[ ! -f "$STATE/db-initialized" ]]; then
   touch "$STATE/db-initialized"
 fi
 
+# Seed the BedWars Solo streak key absent from the upstream schema-only dump.
+# This foreign-key parent must exist before increment_win_streak can insert results.
+# Run on every start to cover databases initialized before this fix.
+# INSERT IGNORE leaves existing game keys and player statistics unchanged.
+"${DATABASE[@]}" newng <<'SQL'
+INSERT IGNORE INTO win_streak_game_keys (game_key, friendly_name)
+VALUES ('bw_solo', 'BedWars Solo');
+SQL
+
 if [[ ! -f "$DATA/server.properties" ]]; then
   cp "$SOURCES/plugins/docker/server.properties" "$DATA/server.properties"
   sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e 's/^motd=.*/motd=new-ng BedWars/' "$DATA/server.properties"
