@@ -533,6 +533,36 @@ PHP;
         exit(1);
     }
 
+
+    // NetherGames' InvMenu still references the removed historical
+    // ProtocolInfo::PROTOCOL_1_20_10 constant. Its exact protocol ID is 594.
+    // Keep the original threshold-dependent timestamp scaling (two cases)
+    // instead of bypassing version checks. Axolotl accepts only current 2193.
+    $member = 'vendor/nethergamesmc/invmenu/src/muqsit/invmenu/session/network/handler/PlayerNetworkHandlerRegistry.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'ProtocolInfo::PROTOCOL_1_20_10';
+        $after = '594';
+        $count = substr_count($content, $before);
+        if ($count === 2) {
+            $patched = str_replace($before, $after, $content);
+            if (substr_count($patched, '$protocolId >= 594') !== 2 ||
+                str_contains($patched, $before)) {
+                fwrite(STDERR, "ERROR: Unexpected InvMenu protocol threshold structure in $member.\n");
+                exit(1);
+            }
+            $updated[$member] = $patched;
+        } elseif ($count === 0 && substr_count($content, '$protocolId >= 594') === 2) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / InvMenu historical protocol threshold\n";
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected InvMenu historical protocol constant count in $member: $count.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xBedwars.phar') {
+        fwrite(STDERR, "ERROR: Missing InvMenu player network registry in xBedwars PHAR.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
