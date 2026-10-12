@@ -17,6 +17,7 @@ declare(strict_types=1);
  * Fence blockstates and full-chunk serialization use Axolotl's APIs.
  * SkinData trusted flag and LevelChunkPacket signature match Bedrock 26.50.
  * AddPlayerPacket NPC abilities now pass AbilitiesData directly.
+ * PlayerListPacket operations use typed entries and ::create().
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -372,6 +373,66 @@ PHP;
         } else {
             fwrite(STDERR, "ERROR: Missing expected NPC abilities block in $member.\n");
             exit(1);
+        }
+    }
+    // Axolotl's PlayerListPacket (Bedrock 26.50) encodes mixed per-entry
+    // add/remove types via ::create(array $entries). NetherGames' older
+    // ::add()/::remove() wrappers no longer exist. Removal entries must
+    // actually be TYPE_REMOVE, not reused TYPE_ADD records.
+    $playerListPatches = [
+        'src/NetherGames/NGEssentials/entity/EntityManager.php' => [
+            'PlayerListPacket::add($entries)' =>
+                'PlayerListPacket::create($entries)',
+            'PlayerListPacket::remove($entries)' =>
+                'PlayerListPacket::create(array_map(static fn(PlayerListEntry $entry): PlayerListEntry => PlayerListEntry::createRemovalEntry($entry->uuid), $entries))',
+        ],
+        'src/NetherGames/NGEssentials/entity/custom/CustomHuman.php' => [
+            'PlayerListPacket::add([$entry = $this->getListEntry($networkSession->getTypeConverter())])' =>
+                'PlayerListPacket::create([$entry = $this->getListEntry($networkSession->getTypeConverter())])',
+            'PlayerListPacket::remove([$entry])' =>
+                'PlayerListPacket::create([PlayerListEntry::createRemovalEntry($entry->uuid)])',
+        ],
+        'src/NetherGames/NGEssentials/entity/CustomGeometryTrait.php' => [
+            'PlayerListPacket::add([' => 'PlayerListPacket::create([',
+            'PlayerListPacket::remove([PlayerListEntry::createRemovalEntry(' =>
+                'PlayerListPacket::create([PlayerListEntry::createRemovalEntry(',
+        ],
+        'vendor/nethergamesmc/libreplay/session/record/utils/Filmroll.php' => [
+            'PlayerListPacket::add([' => 'PlayerListPacket::create([',
+            'PlayerListPacket::remove([PlayerListEntry::createRemovalEntry(' =>
+                'PlayerListPacket::create([PlayerListEntry::createRemovalEntry(',
+        ],
+    ];
+    foreach ($playerListPatches as $member => $replacements) {
+        if (!isset($phar[$member])) {
+            if (basename($path) === 'NGEssentials.phar' && str_starts_with($member, 'src/NetherGames/NGEssentials/')) {
+                fwrite(STDERR, "ERROR: Missing player-list compatibility member: $member\n");
+                exit(1);
+            }
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $newContent = $content;
+        foreach ($replacements as $before => $after) {
+            if (str_contains($newContent, $before)) {
+                if (substr_count($newContent, $before) !== 1) {
+                    fwrite(STDERR, "ERROR: Unexpected player-list method count in $member: $before\n");
+                    exit(1);
+                }
+                $newContent = str_replace($before, $after, $newContent);
+            } elseif (!str_contains($newContent, $after)) {
+                fwrite(STDERR, "ERROR: Unexpected player-list invocation in $member: $before\n");
+                exit(1);
+            }
+        }
+        if (preg_match('/PlayerListPacket::(?:add|remove)\s*\(/', $newContent)) {
+            fwrite(STDERR, "ERROR: Obsolete PlayerListPacket method remains in $member.\n");
+            exit(1);
+        }
+        if ($newContent !== $content) {
+            $updated[$member] = $newContent;
+        } else {
+            echo "[new-ng] Already compatible: " . basename($path) . " / PlayerListPacket " . basename($member) . "\n";
         }
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
