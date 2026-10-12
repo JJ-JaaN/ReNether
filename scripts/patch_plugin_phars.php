@@ -16,6 +16,7 @@ declare(strict_types=1);
  * Historical protocol gates retain NetherGames' original numeric thresholds.
  * Fence blockstates and full-chunk serialization use Axolotl's APIs.
  * SkinData trusted flag and LevelChunkPacket signature match Bedrock 26.50.
+ * AddPlayerPacket NPC abilities now pass AbilitiesData directly.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -333,6 +334,45 @@ PHP;
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGPlayer in NGEssentials PHAR.\n");
         exit(1);
+    }
+    // NetherGames' AddPlayerPacket::create() accepted UpdateAbilitiesPacket,
+    // whereas Axolotl's Bedrock 26.50 API requires the enclosed AbilitiesData.
+    // Both human NPC spawning paths use the same obsolete wrapper; unwrap
+    // exactly the AddPlayerPacket argument without changing other packet uses.
+    foreach ([
+        'src/NetherGames/NGEssentials/entity/custom/CustomHuman.php',
+        'src/NetherGames/NGEssentials/entity/CustomGeometryTrait.php',
+    ] as $member) {
+        if (!isset($phar[$member])) {
+            if (basename($path) === 'NGEssentials.phar') {
+                fwrite(STDERR, "ERROR: Missing human NPC compatibility member: $member\n");
+                exit(1);
+            }
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'UpdateAbilitiesPacket::create(new AbilitiesData(';
+        $after = 'new AbilitiesData(';
+        $beforeClosing = <<<'PHP'
+            ])),
+PHP;
+        $afterClosing = <<<'PHP'
+            ]),
+PHP;
+        if (str_contains($content, $before)) {
+            if (substr_count($content, $before) !== 1 || substr_count($content, $beforeClosing) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected AddPlayerPacket abilities block in $member.\n");
+                exit(1);
+            }
+            $content = str_replace($before, $after, $content);
+            $content = str_replace($beforeClosing, $afterClosing, $content);
+            $updated[$member] = $content;
+        } elseif (str_contains($content, $after) && str_contains($content, $afterClosing)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / NPC abilities " . basename($member) . "\n";
+        } else {
+            fwrite(STDERR, "ERROR: Missing expected NPC abilities block in $member.\n");
+            exit(1);
+        }
     }
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
