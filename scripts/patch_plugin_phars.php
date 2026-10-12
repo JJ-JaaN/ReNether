@@ -630,6 +630,57 @@ PHP;
         }
     }
 
+    // Prevent a finish-time crash when the legacy procedure's OUT variables
+    // remain NULL. Read the committed row instead of session OUT variables.
+    // The bestChanged fallback handles NULL for first-ever streaks; an
+    // unmatched historical best tie can result in a cosmetic announcement.
+    $member = 'resources/mysql.sql';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'SELECT @r_xuid as xuid, @r_gameKey as gameKey, @r_current as current, @r_best as best, @r_bestChanged as bestChanged;';
+        $after = 'SELECT xuid, gameKey, current, best, COALESCE(@r_bestChanged, current = best) AS bestChanged FROM win_streaks WHERE xuid = :xuid AND gameKey = :gameKey;';
+        if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Streak SQL result\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected streaks.increment query in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials PHAR missing resources/mysql.sql.\n");
+        exit(1);
+    }
+
+    // Guard against invalid rows from malformed or incomplete SQL results.
+    $member = 'vendor/nethergamesmc/libminigames/utils/Streaks.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = '$onSelected(Streak::FromSQL($rows[0]));';
+        $after = <<<'PHP'
+$row = $rows[0];
+            if (!is_string($row["xuid"] ?? null) || !is_string($row["gameKey"] ?? null) ||
+                !is_numeric($row["current"] ?? null) || !is_numeric($row["best"] ?? null)) {
+                NGEssentials::getInstance()->getLogger()->warning(
+                    "Unexpected streaks.increment result for $xuid / $gameKey; skipping invalid response"
+                );
+                return;
+            }
+            $onSelected(Streak::FromSQL($row));
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Streak result validation\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected streaks.increment handler in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials PHAR missing Streaks.php.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
