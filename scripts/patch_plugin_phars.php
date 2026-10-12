@@ -681,6 +681,71 @@ PHP;
         exit(1);
     }
 
+    // Original Network Hub spawn differs from the dedicated BedWars waiting
+    // area. Only switch to the Hub coordinates when the migration marker
+    // confirms the original official Hub has replaced the legacy BW copy.
+    // Normal BW installations without this marker retain their old spawn.
+    $member = 'src/NetherGames/NGEssentials/ServerManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+            self::BW, self::MM => new Location(0.5, 65, 0.5, $defaultWorld, 0, 0),
+PHP;
+        $after = <<<'PHP'
+            self::BW => is_file($this->getPlugin()->getServer()->getDataPath() . '.new-ng-original-hub')
+                ? new Location(-26.5, 42, -22.5, $defaultWorld, 320, 0)
+                : new Location(0.5, 65, 0.5, $defaultWorld, 0, 0),
+            self::MM => new Location(0.5, 65, 0.5, $defaultWorld, 0, 0),
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / original Hub spawn\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected original Hub spawn pattern in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing ServerManager for original Hub spawn.\n");
+        exit(1);
+    }
+
+    // The match waiting lobby must keep its original 0,65,0 spawn even though
+    // players joining the default world now arrive in the old Network Hub.
+    $member = 'vendor/nethergamesmc/libminigames/Arena.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+    public function getWaitingLobbySpawn(): Location
+    {
+        $location = $this->getPlugin()->getEssentials()->getServerManager()->getSpawn();
+
+        if ($this->world !== null) {
+PHP;
+        $after = <<<'PHP'
+    public function getWaitingLobbySpawn(): Location
+    {
+        $location = $this->getPlugin()->getEssentials()->getServerManager()->getSpawn();
+        if (is_file($this->getPlugin()->getServer()->getDataPath() . '.new-ng-original-hub') &&
+            $this->getPlugin()->getMinigameTag() === \NetherGames\NGEssentials\ServerManager::BW) {
+            $location = new Location(0.5, 65, 0.5, $location->getWorld(), 0, 0);
+        }
+
+        if ($this->world !== null) {
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / separate BW waiting spawn\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected BW waiting lobby spawn pattern in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing libminigames Arena for BW waiting spawn.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
