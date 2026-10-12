@@ -435,6 +435,57 @@ PHP;
             echo "[new-ng] Already compatible: " . basename($path) . " / PlayerListPacket " . basename($member) . "\n";
         }
     }
+
+    // Axolotl BedrockProtocol 26.50 uses per-entry scoreboard actions.
+    // NetherGames NGEssentials still uses packet-level TYPE_REMOVE / TYPE_CHANGE.
+    // Patch the PHAR in-place, preserving the old 'remove then change' behavior.
+    $member = 'src/NetherGames/NGEssentials/utils/scoreboard/Scoreboard.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $newSignature = 'public function getPacket(array $lines, ScorePacketEntryAction $type): ClientboundPacket';
+        if (str_contains($content, $newSignature)) {
+            if (!str_contains($content, 'use pocketmine\network\mcpe\protocol\types\ScorePacketEntryAction;') ||
+                !str_contains($content, '$entry->action = $type;') ||
+                !str_contains($content, 'return SetScorePacket::create($entries);') ||
+                str_contains($content, 'SetScorePacket::TYPE_') ||
+                str_contains($content, 'ScorePacketEntry::TYPE_FAKE_PLAYER')) {
+                fwrite(STDERR, "ERROR: Incomplete Scoreboard API patch in $member.\n");
+                exit(1);
+            }
+            echo "[new-ng] Already compatible: " . basename($path) . " / Scoreboard actions\n";
+        } else {
+            $replacements = [
+                'use pocketmine\network\mcpe\protocol\types\ScorePacketEntry;' =>
+                    "use pocketmine\\network\\mcpe\\protocol\\types\\ScorePacketEntry;\nuse pocketmine\\network\\mcpe\\protocol\\types\\ScorePacketEntryAction;",
+                '$this->getPacket($lines, SetScorePacket::TYPE_REMOVE)' =>
+                    '$this->getPacket($lines, ScorePacketEntryAction::REMOVE)',
+                '$this->getPacket($lines, SetScorePacket::TYPE_CHANGE)' =>
+                    '$this->getPacket($lines, ScorePacketEntryAction::CHANGE_FAKE_PLAYER)',
+                'public function getPacket(array $lines, int $type): ClientboundPacket' =>
+                    $newSignature,
+                '            $entry->scoreboardId = $line;' =>
+                    "            \$entry->scoreboardId = \$line;\n            \$entry->action = \$type;",
+                'if ($type === SetScorePacket::TYPE_CHANGE) {' =>
+                    'if ($type === ScorePacketEntryAction::CHANGE_FAKE_PLAYER) {',
+                '                $entry->type = ScorePacketEntry::TYPE_FAKE_PLAYER;' . "\n" =>
+                    '',
+                "        return SetScorePacket::create(\n            \$type,\n            \$entries\n        );" =>
+                    '        return SetScorePacket::create($entries);',
+            ];
+            foreach ($replacements as $before => $after) {
+                if (substr_count($content, $before) !== 1) {
+                    fwrite(STDERR, "ERROR: Unexpected Scoreboard API pattern in $member: " . $before . "\n");
+                    exit(1);
+                }
+                $content = str_replace($before, $after, $content);
+            }
+            $updated[$member] = $content;
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing scoreboard source in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
