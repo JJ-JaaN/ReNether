@@ -51,10 +51,9 @@ Network Lobby spawn `(-26.5, 42, -22.5)`, dok odvojeni BedWars waiting
 lobby i dalje koristi `(0.5, 65, 0.5)`. Ako ručno vraćaš **stari**
 BedWars Hub iz backupa, ukloni i tu oznaku te restartaj server.
 
-Ovo instalira **originalnu mapu** Network Hub-a, ali ne i sve funkcije
-originalnog Lobby servera. Trenutačno se izvršavaju `NGEssentials` i
-`xBedwars`, bez `xLobby` plugina. Stari NPC-jevi, teleporti između
-gamemodeova i mrežni izbornici neće automatski raditi samo zbog mape.
+Originalni Hub svijet **ne sadrži NPC-jeve kao spremljene entitete**. Nakon migracije oznake `.new-ng-original-hub`, patcher automatski podiže **19 vidljivih skinniranih NPC-jeva** na koordinatama glavnih NetherGames NPC-jeva. `BedWars` NPC pokreće lokalnu `joinArena()` funkciju; `Arcade` NPC teleportira u originalni `ArcadeLobby`. NPC-jevi drugih gamemodeova daju jasnu poruku da igra nije instalirana. Nekoliko karaktera iz Huba govori osnovnu poruku.
+
+Ovo **nije puni originalni `xLobby`**: za stare 3D modele umjesto njih služe skinnirani humanoidni NPC-jevi, a puni NPC dijalozi, svi side-questovi i ostali gamemodeovi ostaju neimplementirani. Izbjegnuto je učitavanje `xLobby` u samostalni BedWars proces kako njegove lobby funkcije ne bi prebrisale BedWars stanje igrača. Nije potreban ponovni build plugina za dodavanje NPC-jeva; patch na `NGEssentials.phar` aktivira se pri sljedećem pokretanju servera.
 
 ## Što je uključeno
 
