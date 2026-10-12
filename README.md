@@ -45,6 +45,12 @@ ostaju netaknuti. Prije kopiranja provjerava da Axolotl nema aktivan
 kopira samo one koji nedostaju. Za migraciju bez pokretanja poslužitelja
 možeš dodati `NG_BUILD_ONLY=1`.
 
+Migracija postavlja oznaku `.runtime/data/.new-ng-original-hub`. Kada je
+ona prisutna, NGEssentials za **glavni** BedWars server koristi izvorni
+Network Lobby spawn `(-26.5, 42, -22.5)`, dok odvojeni BedWars waiting
+lobby i dalje koristi `(0.5, 65, 0.5)`. Ako ručno vraćaš **stari**
+BedWars Hub iz backupa, ukloni i tu oznaku te restartaj server.
+
 Ovo instalira **originalnu mapu** Network Hub-a, ali ne i sve funkcije
 originalnog Lobby servera. Trenutačno se izvršavaju `NGEssentials` i
 `xBedwars`, bez `xLobby` plugina. Stari NPC-jevi, teleporti između
