@@ -52,10 +52,12 @@ if [[ ! -d "$SOURCES/plugins/.git" ]]; then
   git clone --depth 1 https://github.com/NetherGamesMC/plugins.git "$SOURCES/plugins"
 fi
 if [[ ! -d "$SOURCES/assets/.git" ]]; then
-  log "Sparse-cloning official BedWars assets"
+  log "Sparse-cloning official NetherGames Lobby and BedWars assets"
   git clone --filter=blob:none --sparse https://github.com/NetherGamesMC/assets.git "$SOURCES/assets"
-  git -C "$SOURCES/assets" sparse-checkout set Bedwars
 fi
+# Existing installs originally checked out only Bedwars. Add Lobby even on
+# previously cloned assets; keep both the Network Hub and BedWars waiting area.
+git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby
 python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
 bash "$ROOT/scripts/migrate_assets.sh" "$SOURCES/assets" "$DATA"
 
