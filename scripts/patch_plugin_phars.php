@@ -486,6 +486,53 @@ PHP;
         exit(1);
     }
 
+
+    // Axolotl BedrockProtocol 26.50 PlaySoundPacket::create() requires
+    // loopCount (int), bypassListenerRangeCheck (bool), serverSoundHandle (?int),
+    // and playbackPositionSeconds (?float). The NetherGames plugin supplied
+    // only a legacy nullable seventh argument. Use default, non-looping sound
+    // settings without changing the original sound, location, volume or pitch.
+    $member = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        $this->getNetworkSession()->sendDataPacket(PlaySoundPacket::create(
+            $sound,
+            $location->x,
+            $location->y,
+            $location->z,
+            $volume,
+            $pitch,
+            null
+        ));
+PHP;
+        $after = <<<'PHP'
+        $this->getNetworkSession()->sendDataPacket(PlaySoundPacket::create(
+            $sound,
+            $location->x,
+            $location->y,
+            $location->z,
+            $volume,
+            $pitch,
+            0,
+            false,
+            null,
+            null
+        ));
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / PlaySoundPacket arguments\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected PlaySoundPacket call in $member; refusing change.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGPlayer source for PlaySoundPacket compatibility.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
