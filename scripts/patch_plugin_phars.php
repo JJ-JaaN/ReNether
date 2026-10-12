@@ -15,6 +15,7 @@ declare(strict_types=1);
  * Duplicate player-creation callbacks are ignored to preserve the first error.
  * Historical protocol gates retain NetherGames' original numeric thresholds.
  * Fence blockstates and full-chunk serialization use Axolotl's APIs.
+ * SkinData trusted flag and LevelChunkPacket signature match Bedrock 26.50.
  *
  * Original upstream source is left unchanged; only locally built PHARs are edited.
  */
@@ -258,6 +259,75 @@ PHP;
             $updated[$member] = str_replace($before, $after, $content);
         } else {
             fwrite(STDERR, "ERROR: Unexpected NGPlayer chunk serialization in $member; refusing change.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGPlayer in NGEssentials PHAR.\n");
+        exit(1);
+    }
+    // NetherGames SkinData::setVerified() no longer exists in Axolotl's
+    // BedrockProtocol. LegacySkinAdapter already constructs SkinData with
+    // trustedSkinFlag=TRUSTED_SKIN_TRUE by default. Remove the obsolete setter.
+    $member = 'src/NetherGames/NGEssentials/utils/skins/SkinValidatorAdapter.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        $skinData = parent::toSkinData($skin);
+        $skinData->setVerified(true);
+
+        return $skinData;
+PHP;
+        $after = <<<'PHP'
+        $skinData = parent::toSkinData($skin);
+
+        return $skinData;
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, '->setVerified(')) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / SkinData trusted flag\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected SkinValidatorAdapter verification setter in $member; refusing change.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing SkinValidatorAdapter in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
+    // Bedrock 26.50 requires a nullable subchunk-request limit followed by
+    // cacheEnabled and an array of blob hashes (seven arguments total).
+    // The NetherGames empty-chunk packet used the previous six-argument ABI.
+    $member = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+                    $session->sendDataPacket(LevelChunkPacket::create(
+                        new ChunkPosition($X, $Z),
+                        $dimensionId,
+                        $subChunkCount,
+                        false,
+                        null,
+                        $emptyChunk
+                    ));
+PHP;
+        $after = <<<'PHP'
+                    $session->sendDataPacket(LevelChunkPacket::create(
+                        new ChunkPosition($X, $Z),
+                        $dimensionId,
+                        $subChunkCount,
+                        null,
+                        false,
+                        [],
+                        $emptyChunk
+                    ));
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / LevelChunkPacket arguments\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected empty LevelChunkPacket in $member; refusing change.\n");
             exit(1);
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
