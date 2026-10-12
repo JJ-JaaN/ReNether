@@ -586,6 +586,50 @@ PHP;
         exit(1);
     }
 
+
+    // Axolotl 5.49.1 requires either an EntityFactory save ID or the
+    // NeverSavedWithChunkEntity marker BEFORE the entity constructor runs.
+    // These BedWars match-only entities all disable chunk saving *after*
+    // parent::__construct(), which is too late for World::addEntity().
+    // They are never intended to be persisted. Mark them explicitly rather
+    // than inventing save IDs or weakening the core factory safety check.
+    $bedwarsTransientEntities = [
+        'src/bedwars/utils/entity/mob/BaseMob.php' =>
+            'abstract class BaseMob extends Monster',
+        'src/bedwars/utils/entity/BridgeEgg.php' =>
+            'class BridgeEgg extends Living',
+        'src/bedwars/utils/entity/Landmine.php' =>
+            'final class Landmine extends Projectile',
+        'src/bedwars/utils/entity/PrimedTNT.php' =>
+            'class PrimedTNT extends \pocketmine\entity\object\PrimedTNT',
+        'src/bedwars/utils/entity/Snowball.php' =>
+            'class Snowball extends \NetherGames\NGEssentials\entity\Snowball',
+    ];
+    foreach ($bedwarsTransientEntities as $member => $declaration) {
+        if (!isset($phar[$member])) {
+            if (basename($path) === 'xBedwars.phar') {
+                fwrite(STDERR, "ERROR: Missing BedWars transient entity: $member.\n");
+                exit(1);
+            }
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $markedDeclaration = $declaration . ' implements \pocketmine\entity\NeverSavedWithChunkEntity';
+        if (str_contains($content, $markedDeclaration)) {
+            if (!str_contains($content, '$this->setCanSaveWithChunk(false);')) {
+                fwrite(STDERR, "ERROR: Transient entity does not disable chunk saving: $member.\n");
+                exit(1);
+            }
+            echo "[new-ng] Already compatible: " . basename($path) . " / Non-saved entity " . basename($member) . "\n";
+        } elseif (substr_count($content, $declaration) === 1 &&
+                  str_contains($content, '$this->setCanSaveWithChunk(false);')) {
+            $updated[$member] = str_replace($declaration, $markedDeclaration, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected transient entity class declaration in $member.\n");
+            exit(1);
+        }
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
