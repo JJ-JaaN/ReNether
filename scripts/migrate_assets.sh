@@ -32,6 +32,7 @@ targets=(
   "plugin_data/xBedwars/NETHERGAMES_ASSETS_LICENSE.txt"
 )
 
+copied_official_hub=0
 if [[ "$FORCE" == 1 ]]; then
   # server.lock is exclusively flocked by Axolotl while it is running.
   if [[ -f "$DATA/server.lock" ]]; then
@@ -79,6 +80,7 @@ if [[ "$FORCE" == 1 ]]; then
     fi
     echo "[new-ng] Remigrated: $rel"
   done
+  copied_official_hub=1
   echo "[new-ng] Previous assets backed up: $backup"
 else
   for i in "${!sources[@]}"; do
@@ -89,8 +91,15 @@ else
       mkdir -p "$DATA/$(dirname "$rel")"
       cp -a -- "${sources[$i]}" "$DATA/$rel"
       echo "Copied: $DATA/$rel"
+      if [[ "$rel" == worlds/Hub ]]; then copied_official_hub=1; fi
     fi
   done
+fi
+
+# Allow the BedWars server to use original Network Hub spawn coordinates
+# while keeping separate BedWars waiting-lobby spawn coordinates.
+if [[ "$copied_official_hub" == 1 ]]; then
+  printf 'Original NetherGames Network Hub world copied from Lobby/worlds/Hub.\n' > "$DATA/.new-ng-original-hub"
 fi
 
 cat > "$DEST/NETHERGAMES_ASSETS_CREDIT.txt" <<'TXT'
