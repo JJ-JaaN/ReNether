@@ -563,6 +563,29 @@ PHP;
         exit(1);
     }
 
+
+    // Axolotl 5.49.1 World::createBlockUpdatePackets() accepts only the
+    // positions array. The legacy NetherGames InvMenu fork still passes
+    // TypeConverter as its first argument when removing fake menu blocks.
+    // Keep the block restoration packets; only remove the obsolete argument.
+    $member = 'vendor/nethergamesmc/invmenu/src/muqsit/invmenu/type/graphic/BlockInvMenuGraphic.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = '$player->getWorld()->createBlockUpdatePackets($network->getTypeConverter(), [$this->position])';
+        $after = '$player->getWorld()->createBlockUpdatePackets([$this->position])';
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / InvMenu block restoration\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected InvMenu createBlockUpdatePackets() invocation in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xBedwars.phar') {
+        fwrite(STDERR, "ERROR: Missing InvMenu BlockInvMenuGraphic from xBedwars PHAR.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
