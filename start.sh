@@ -168,6 +168,15 @@ if [[ ! -f "$DATA/server.properties" ]]; then
   cp "$SOURCES/plugins/docker/server.properties" "$DATA/server.properties"
   sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e 's/^motd=.*/motd=new-ng BedWars/' "$DATA/server.properties"
 fi
+# A requested full asset remigration explicitly selects the old Network Hub
+# as the main world, without touching other user server.properties settings.
+if [[ "${NG_REMIGRATE_ASSETS:-0}" == 1 ]]; then
+  if grep -q '^level-name=' "$DATA/server.properties"; then
+    sed -i 's/^level-name=.*/level-name=Hub/' "$DATA/server.properties"
+  else
+    printf '\nlevel-name=Hub\n' >> "$DATA/server.properties"
+  fi
+fi
 if [[ ! -f "$DATA/pocketmine.yml" ]]; then
   cp "$SOURCES/plugins/docker/Chunk_Ticking_pocketmine.yml" "$DATA/pocketmine.yml"
   sed -i -e 's/^  enable-encryption: false/  enable-encryption: true/' -e 's/^  enable-input: false/  enable-input: true/' "$DATA/pocketmine.yml"
