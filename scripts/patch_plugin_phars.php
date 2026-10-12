@@ -746,6 +746,113 @@ PHP;
         exit(1);
     }
 
+    // Old Network Hub NPCs were created by xLobby's startup, not stored
+    // in LevelDB worlds. Since xLobby's entire gameplay layer conflicts
+    // with a standalone BW server, create compatible skinned HumanNPCs
+    // in the existing NGEssentials EntityManager after it is initialized.
+    $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        $this->addCustomEntity(new CustomActorList("Money Storage", "ng:mmo_npc_money_storage"));
+PHP;
+        $addition = <<<'PHP'
+        // new-ng: reconstructed visible Network Hub NPCs. Official world
+        // geometry does not contain entities created at plugin startup.
+        // Avoid xLobby on a BedWars server: its join listener would install
+        // the Lobby hotbar and interfere with BedWars-specific behavior.
+        if (is_file($this->getPlugin()->getServer()->getDataPath() . '.new-ng-original-hub') &&
+            $this->getPlugin()->getServerManager()->getServerType() === ServerManager::BW) {
+            $hubNpcSpecs = [
+                // Display name, NGEssentials skin PNG, original position, action.
+                ['BedWars', 'bw.png', 15, 41, 7, 'bedwars'],
+                ['SkyWars', 'sw.png', 16, 41, -1, 'offline'],
+                ['Murder Mystery', 'mm.png', 15, 41, -5, 'offline'],
+                ['Conquests', 'cq.png', 16, 41, 3, 'offline'],
+                ['Duels', 'duels.png', 13, 41, -9, 'offline'],
+                ['Survival Games', 'sg.png', 9, 41, -12, 'offline'],
+                ['Creative', 'creative.png', -9, 41, 19, 'offline'],
+                ['Factions', 'factions.png', -1, 41, 20, 'offline'],
+                ['UHC', 'uhc.png', -5, 41, 20, 'offline'],
+                ['SkyBlock', 'sb.png', 3, 41, 19, 'offline'],
+                ['The Bridge', 'tb.png', -13, 41, 17, 'offline'],
+                ['Arcade', 'ac.png', -16, 41, 13, 'arcade'],
+                ['Coming Soon', 'soon.png', 5, 41, -14, 'offline'],
+                ['Coming Soon', 'soon.png', -18, 41, 9, 'offline'],
+                // Several original Hub characters near the spawn area.
+                ['Adventurer', 'lobby/OldMan.png', -15.5, 41, -21.5, 'story'],
+                ['Pirate', 'lobby/pirate.png', -26.5, 40, -98.5, 'story'],
+                ['Scientist', 'lobby/Scientist.png', -76.5, 40, 55.5, 'story'],
+                ['Camper', 'lobby/Camper.png', -185.5, 55, -70.5, 'story'],
+                ['Minotaur', 'lobby/minotaur.png', 45.5, 49, -142.5, 'story']
+            ];
+            $spawned = 0;
+            foreach ($hubNpcSpecs as [$label, $sprite, $x, $y, $z, $action]) {
+                try {
+                    $texture = \NetherGames\NGEssentials\utils\SkinUtils::getTextureFromString(
+                        \NetherGames\NGEssentials\utils\Utils::getResourceContent('skins/npcs/' . $sprite)
+                    );
+                    $skin = new \pocketmine\entity\Skin('new-ng-hub-' . $sprite, $texture);
+                    $text = '§e§l' . $label . '§r' . "\n" .
+                        ($action === 'bedwars' ? '§aTap to play' :
+                         ($action === 'offline' ? '§cNot yet available' : '§bTap to interact'));
+                    $callback = static function (Player $player) use ($label, $action): void {
+                        if ($action === 'bedwars') {
+                            $bedwars = $player->getServer()->getPluginManager()->getPlugin('xBedwars');
+                            if ($bedwars instanceof \bedwars\Bedwars && $bedwars->isEnabled()) {
+                                $bedwars->joinArena($player);
+                            } else {
+                                $player->sendMessage('§cBedWars is not running.');
+                            }
+                        } elseif ($action === 'arcade') {
+                            $manager = $player->getServer()->getWorldManager();
+                            if (!$manager->isWorldLoaded('ArcadeLobby')) {
+                                $manager->loadWorld('ArcadeLobby');
+                            }
+                            $arcade = $manager->getWorldByName('ArcadeLobby');
+                            if ($arcade !== null) {
+                                $player->teleport(new Location(176, 79, 1438, $arcade, 180, 0));
+                            } else {
+                                $player->sendMessage('§cArcade lobby world is not loaded.');
+                            }
+                        } elseif ($action === 'story') {
+                            $player->sendMessage('§e' . $label . '§7: Welcome to the old NetherGames Hub!');
+                        } else {
+                            $player->sendMessage('§e' . $label . '§7 is not installed on this server yet.');
+                        }
+                    };
+                    $npc = new \NetherGames\NGEssentials\entity\custom\HumanNPC(
+                        new Location((float)$x, (float)$y, (float)$z, $defaultWorld, 90, 0),
+                        $text,
+                        $skin,
+                        $callback
+                    );
+                    $npc->setScale(1.0);
+                    $this->addEntity($npc);
+                    ++$spawned;
+                } catch (\Throwable $error) {
+                    $this->getPlugin()->getLogger()->warning(
+                        'Could not spawn Network Hub NPC ' . $label . ': ' . $error->getMessage()
+                    );
+                }
+            }
+            $this->getPlugin()->getLogger()->info('new-ng Network Hub: spawned ' . $spawned . ' NPCs');
+        }
+PHP;
+        $after = $before . "\n" . $addition;
+        if (str_contains($content, 'new-ng Network Hub: spawned')) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Network Hub NPCs\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected NGEssentials EntityManager NPC insertion point.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials EntityManager missing for Hub NPCs.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
