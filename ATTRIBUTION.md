@@ -8,8 +8,8 @@ Projekt **new-ng** je neovisni pokušaj kompatibilnosti. Nije službeni NetherGa
 | Axolotl-PM engine | Axolotl-PM i prethodni PocketMine doprinositelji | LGPL-3.0 | https://github.com/axolotl-pm/PocketMine-MP |
 | NetherGames PocketMine API ideje | NetherGames i PocketMine doprinositelji | LGPL-3.0 | https://github.com/NetherGamesMC/PocketMine-MP |
 | NetherGames BedWars, NGEssentials i biblioteke | NetherGames Network i doprinositelji (uklj. Callum, Dries i ostale autore naznačene u datotekama) | Repozitorij navodi AGPL-3.0; pojedina zaglavlja navode proprietary | https://github.com/NetherGamesMC/plugins |
-| NetherGames BedWars arene, mape i waiting lobby | Copyright (c) NetherGames | CC BY 4.0 | https://github.com/NetherGamesMC/assets |
+| NetherGames Network Hub, ArcadeLobby, BedWars arene, mape i waiting lobby | Copyright (c) NetherGames | CC BY 4.0 | https://github.com/NetherGamesMC/assets |
 
-Pune licence ostaju pohranjene u preuzetim izvornim repozitorijima. Sačuvati povijest i izvorne copyright komentare. Creative Commons atribucija za world datoteke čuva se i u `plugin_data/xBedwars/NETHERGAMES_ASSETS_CREDIT.txt`.
+Pune licence ostaju pohranjene u preuzetim izvornim repozitorijima. Sačuvati povijest i izvorne copyright komentare. Creative Commons atribucija za originalne Lobby i BedWars world datoteke čuva se i u `plugin_data/xBedwars/NETHERGAMES_ASSETS_CREDIT.txt`. Pri eksplicitnoj remigraciji originali se kopiraju uz backup prethodnih verzija pod `.runtime/asset-backups/`.
 
 Važno: privatni GitHub repozitorij **ne uklanja** AGPL obveze kada korisnici koriste javno dostupnu modificiranu AGPL aplikaciju preko mreže. Ne objavljivati pakete s nejasnim dodatnim proprietary pravima bez provjere dozvola. Nije dano dopuštenje koristiti tuđe zaštitne znakove za prikaz službene povezanosti.
