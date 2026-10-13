@@ -853,6 +853,29 @@ PHP;
         exit(1);
     }
 
+    // The original Map Selector uses the custom ZONES item. On clients
+    // without the NetherGames item textures its name appears but its icon
+    // is blank. Vanilla paper has a guaranteed Bedrock texture, while all
+    // existing inventory and MinigameListener equality checks still call
+    // Items::getMapSelectionPaper() and therefore keep working unchanged.
+    $member = 'vendor/nethergamesmc/libminigames/utils/Items.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'return CustomItemRegistry::ZONES()->setCustomName(TextFormat::RESET . TextFormat::GREEN . TextFormat::BOLD . "Map Selector");';
+        $after = 'return VanillaItems::PAPER()->setCustomName(TextFormat::RESET . TextFormat::GREEN . TextFormat::BOLD . "Map Selector");';
+        if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Vanilla paper Map Selector\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected Map Selector item declaration in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xBedwars.phar') {
+        fwrite(STDERR, "ERROR: xBedwars PHAR missing libminigames Items.php.\n");
+        exit(1);
+    }
+
     if (basename($path) === 'NGEssentials.phar' && $found !== count($classes)) {
         fwrite(STDERR, "ERROR: Expected both libVanilla tile classes in NGEssentials PHAR; found $found.\n");
         exit(1);
