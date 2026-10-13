@@ -871,8 +871,8 @@ PHP;
             fwrite(STDERR, "ERROR: Unexpected Map Selector item declaration in $member.\n");
             exit(1);
         }
-    } elseif (basename($path) === 'xBedwars.phar') {
-        fwrite(STDERR, "ERROR: xBedwars PHAR missing libminigames Items.php.\n");
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials PHAR missing libminigames Items.php.\n");
         exit(1);
     }
 
