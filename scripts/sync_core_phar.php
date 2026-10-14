@@ -26,6 +26,11 @@ $required = [
         'public function hasForceShutdown()',
         '$this->hasForceShutdown = true;',
     ],
+    // Keep the vanilla explosion ray-tracing algorithm intact while allowing
+    // NetherGames BedWars' subclass to call the inherited exposure helper.
+    'src/world/Explosion.php' => [
+        'protected function getExposure(Vector3 $origin, Entity $entity) : float{',
+    ],
     'src/item/ItemTypeIds.php' => [
         'public const CROSSBOW = 20326;',
         'public const ELYTRA = 20327;',
