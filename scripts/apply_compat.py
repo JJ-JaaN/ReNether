@@ -227,6 +227,27 @@ if "$beginSpawning = function()" not in source:
 else:
     print("Already patched asynchronous player creation")
 
+# Old NetherGames 1.21.x arena palettes predate the 1.26.50 stair
+# "minecraft:corner" blockstate. Missing it currently makes quartz stairs and
+# other stairs decode as unknown blocks. Restore the old straight shape only
+# when that property is absent and both legacy orientation states are valid;
+# preserve all existing orientations and authored corner values.
+name = "src/data/bedrock/block/convert/BlockStateToObjectDeserializer.php"
+anchor = "\t\t$reader = new Reader($blockStateData);"
+modify(name, anchor, r"""		// new-ng: restore pre-1.26.50 stair palette states.
+		if(str_starts_with($id, 'minecraft:') && str_ends_with($id, '_stairs') &&
+			$blockStateData->getState('minecraft:corner') === null &&
+			$blockStateData->getState('weirdo_direction') instanceof \pocketmine\nbt\tag\IntTag &&
+			$blockStateData->getState('upside_down_bit') instanceof \pocketmine\nbt\tag\ByteTag
+		){
+			$blockStateData = new BlockStateData(
+				$id,
+				$blockStateData->getStates() + ['minecraft:corner' => new \pocketmine\nbt\tag\StringTag('none')],
+				$blockStateData->getVersion()
+			);
+		}
+""" + anchor, "new-ng: restore pre-1.26.50 stair palette states")
+
 # NetherGames BedWars overrides the vanilla explosion, and calls the vanilla
 # ray-traced entity exposure calculation. Axolotl made this method private,
 # which produces an uncaught Error for any fireball/TNT hitting an entity.
