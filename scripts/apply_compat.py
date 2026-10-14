@@ -227,6 +227,16 @@ if "$beginSpawning = function()" not in source:
 else:
     print("Already patched asynchronous player creation")
 
+# NetherGames BedWars overrides the vanilla explosion, and calls the vanilla
+# ray-traced entity exposure calculation. Axolotl made this method private,
+# which produces an uncaught Error for any fireball/TNT hitting an entity.
+# Protected visibility permits subclass reuse without changing the algorithm.
+name = "src/world/Explosion.php"
+anchor = "\tprivate function getExposure(Vector3 $origin, Entity $entity) : float{"
+modify(name, anchor,
+       "\tprotected function getExposure(Vector3 $origin, Entity $entity) : float{",
+       "protected function getExposure(Vector3 $origin, Entity $entity) : float{")
+
 extra = {
     "src/event/player/SessionDisconnectEvent.php": r"""<?php
 /* NetherGames-inspired PocketMine API compatibility, LGPL-3.0-or-later. */
