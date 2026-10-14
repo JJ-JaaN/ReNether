@@ -26,6 +26,11 @@ $required = [
         'public function hasForceShutdown()',
         '$this->hasForceShutdown = true;',
     ],
+    // Legacy NetherGames maps predate the 1.26.50 stair corner property.
+    // Normalize only old stair palettes that lack this extra property.
+    'src/data/bedrock/block/convert/BlockStateToObjectDeserializer.php' => [
+        'new-ng: restore pre-1.26.50 stair palette states',
+    ],
     // Keep the vanilla explosion ray-tracing algorithm intact while allowing
     // NetherGames BedWars' subclass to call the inherited exposure helper.
     'src/world/Explosion.php' => [
