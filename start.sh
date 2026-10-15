@@ -158,6 +158,19 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" 
 
 fi
 
+# Even disabled plugins are auto-discovered by PM if the PHAR stays in
+# plugins/. Preserve the file by renaming it, rather than deleting it.
+if [[ "$GAME" == Bedwars ]]; then
+  if [[ "$SOCCER_ENABLED" == 0 && -f "$DATA/plugins/xSoccer.phar" ]]; then
+    mv "$DATA/plugins/xSoccer.phar" "$DATA/plugins/xSoccer.phar.disabled"
+    log "Soccer disabled (PHAR preserved; original data unchanged)"
+  elif [[ "$SOCCER_ENABLED" == 1 && ! -f "$DATA/plugins/xSoccer.phar" &&
+          -f "$DATA/plugins/xSoccer.phar.disabled" ]]; then
+    mv "$DATA/plugins/xSoccer.phar.disabled" "$DATA/plugins/xSoccer.phar"
+    log "Re-enabled existing Soccer plugin"
+  fi
+fi
+
 # Install original Soccer in the main BedWars/Hub process. Keep a separate
 # PHAR and plugin_data so worlds and match state cannot collide with BedWars.
 if [[ "$GAME" == Bedwars && "$SOCCER_ENABLED" == 1 ]]; then
