@@ -993,6 +993,38 @@ PHP;
         exit(1);
     }
 
+    // Unlike MinigameEvent, PlayerStatChangeEvent has no arena argument.
+    // Use the player's active arena to select the correct plugin when both
+    // BedWars and Soccer run in the same process.
+    $member = 'vendor/nethergamesmc/libminigames/events/PlayerStatChangeEvent.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = '        parent::__construct(Minigame::getInstance());';
+        $after = <<<'PHP'
+        // new-ng: attribute stats to whichever minigame owns this player.
+        $owner = Minigame::getInstance();
+        foreach (['xBedwars', 'xSoccer'] as $gameName) {
+            $game = $player->getServer()->getPluginManager()->getPlugin($gameName);
+            if ($game instanceof Minigame && $game->isEnabled() && $game->getArena($player) !== null) {
+                $owner = $game;
+                break;
+            }
+        }
+        parent::__construct($owner);
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game stats owner\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected player stats event constructor in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: PlayerStatChangeEvent missing from NGEssentials PHAR.\n");
+        exit(1);
+    }
+
     // Add a functional Soccer NPC to the reconstructed main Hub while
     // retaining the already installed original NPC patch and other NPCs.
     $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
