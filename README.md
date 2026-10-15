@@ -22,31 +22,31 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
 
-## Soccer: zaseban testni server za 1v1
+## Soccer + BedWars na jednom serveru (UDP 19133)
 
-Izvorni NetherGames `xSoccer` v2.0 ima najmanje **2 igrača** i **4 igrača po ekipi**. Dakle, dva igrača mogu testirati 1v1 (crveni protiv plavih). Utakmica traje 5 minuta. Soccer još nije runtime-testiran s Axolotl-PM 5.49.1.
+Izvorni NetherGames `xSoccer` v2.0 igra se s najmanje **2 igrača** (1v1) i najviše 4 po ekipi. Za test je **automatski uključen u glavni server** zajedno s `xBedwars`. **Nema drugog porta ni proxyja.** Ne treba se spajati na stari odvojeni Soccer port 19134.
 
-**Ne gasiti postojeći BedWars.** Na VPS-u u drugoj `tmux` sesiji:
+Za prvi test **ugasi samo glavni BedWars proces** naredbom `stop`, a zatim:
 
 ```bash
 cd ~/new-ng
 git pull --ff-only
-NG_GAME=Soccer bash ./start.sh 2>&1 | tee soccer.log
+NG_PORT=19133 bash ./start.sh 2>&1 | tee soccer-main.log
 ```
 
-Soccer koristi **UDP 19134**, `.runtime/soccer/data/`, plugin `xSoccer.phar`, NGEssentials `serverType: SC` i originalnu mapu `SC-1`. BedWars ostaje na **UDP 19133** i u `.runtime/data/`. Oba profila imaju odvojene svjetove i konfiguracije, ali dijele razvojnu MariaDB bazu `newng`.
+Oba igrača povezuju se na uobičajeni BedWars server, isti IP i **UDP 19133**, te pokreću `/sc join`. U originalnom Network Hubu nalazi se i novi Soccer NPC (blizu Arcade NPC-ja); BedWars NPC i `/bw join` i dalje rade. `/sc leave` vraća u Hub. Igrači ne mogu istovremeno biti u dva minigamea.
 
-`start.sh` dohvaća i `assets/Soccer/arenas/SC-1` te `assets/Soccer/WaitingLobby`, a postojeće kopije čuva. Soccer ne podržava `NG_REMIGRATE_ASSETS=1` jer je sigurnije izbjeći slučajno brisanje mapa.
+Soccer automatski priprema `plugin_data/xSoccer/arenas/SC-1` i `plugin_data/xSoccer/WaitingLobby` iz originalnih asseta, bez mijenjanja `worlds/Hub`, BedWars arena, podataka o igračima ili MariaDB baze. Komanda za ručno pokretanje `/sc start` dostupna je u development modu kad si u areni. Dvoje igrača trebaju biti u suprotnim ekipama.
 
-U Minecraft Bedrocku dodaj isti VPS/IP kao za BedWars, ali s portom **19134**. Zatim oba igrača upisuju:
+Za hitan povratak na BedWars bez Soccera (bez brisanja podataka):
 
-```text
-/sc join
+```bash
+NG_ENABLE_SOCCER=0 NG_PORT=19133 bash ./start.sh
 ```
 
-Za ručni test u development modu postoji i `/sc start` kad si već u areni. Dva igrača trebaju biti u **različitim ekipama**, inače čekanje na uravnotežene timove može potrajati. Na VPS-u po potrebi dopusti `19134/udp` u firewallu i kod hosting providera.
+Ovo premješta Soccer PHAR u `.disabled` datoteku; sljedeće normalno pokretanje vratit će ga automatski.
 
-Ako se nešto sruši, sačuvaj cijeli `soccer.log`, osobito prvi `CRITICAL` ili `ERROR` i stack trace. Pripremljena je kompatibilnost za Soccer loptu, ali fiziku, prikaz modela i cijeli meč treba potvrditi u igri.
+**Status: neprovjereno na stvarnom VPS-u.** Prvi test neka bude `/sc join`, provjera lopte i petominutni 1v1. Ako se dogodi `CRITICAL`/`ERROR`, pošalji početni stack trace iz `soccer-main.log`. Stari način `NG_GAME=Soccer` na zasebnom portu ostaje dostupan samo za dodatne izolirane testove.
 
 ## Ponovna migracija iz starog BedWars Hub-a
 
