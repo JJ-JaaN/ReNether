@@ -123,24 +123,30 @@ fi
 if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/$MINIGAME_PHAR" || "${NG_REBUILD:-0}" == 1 ]] ||
    ! phar_has_vendor "$DATA/plugins/NGEssentials.phar" ||
    ! phar_has_vendor "$DATA/plugins/$MINIGAME_PHAR"; then
-  log "Compiling PocketMine and NetherGames plugins (experimental, may fail)"
-  (
-    cd "$SOURCES/axolotl"
-    php_composer install --prefer-source --no-dev --classmap-authoritative --no-interaction --no-progress
-    "$PHP" -dphar.readonly=0 build/server-phar.php --git "$(git rev-parse HEAD)"
-    cp -f PocketMine-MP.phar "$DATA/PocketMine-MP.phar"
-  )
+  log "Preparing PocketMine and NetherGames plugins (experimental, may fail)"
+  if [[ ! -s "$DATA/PocketMine-MP.phar" || "${NG_REBUILD:-0}" == 1 ]]; then
+    (
+      cd "$SOURCES/axolotl"
+      php_composer install --prefer-source --no-dev --classmap-authoritative --no-interaction --no-progress
+      "$PHP" -dphar.readonly=0 build/server-phar.php --git "$(git rev-parse HEAD)"
+      cp -f PocketMine-MP.phar "$DATA/PocketMine-MP.phar"
+    )
+  fi
   for plugin in NGEssentials "$GAME"; do
+    if [[ "$plugin" == NGEssentials ]]; then
+      output="$DATA/plugins/NGEssentials.phar"
+    else
+      output="$DATA/plugins/$MINIGAME_PHAR"
+    fi
+    if [[ "${NG_REBUILD:-0}" != 1 ]] && phar_has_vendor "$output"; then
+      log "Reusing existing plugin PHAR: $(basename "$output")"
+      continue
+    fi
     (
       cd "$SOURCES/plugins/$plugin"
       if [[ -f composer-build.json ]]; then manifest=composer-build.json; else manifest=composer.json; fi
       "$PHP" "$SOURCES/plugins/scripts/merge-composer.php" "$manifest" "$SOURCES/plugins/shared/repositories.json" composer.merged.json
       COMPOSER_ROOT_VERSION=dev-stable COMPOSER=composer.merged.json COMPOSER_MIRROR_PATH_REPOS=1 php_composer install --prefer-source --no-dev --no-interaction --no-progress
-      if [[ "$plugin" == NGEssentials ]]; then
-        output="$DATA/plugins/NGEssentials.phar"
-      else
-        output="$DATA/plugins/$MINIGAME_PHAR"
-      fi
       [[ -f vendor/autoload.php ]] || die "Composer did not create $plugin/vendor/autoload.php"
       "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- --make . --relative . --out "$output"
       # Include Composer dependencies, including path-repository symlinks, which can be omitted by DevTools.
