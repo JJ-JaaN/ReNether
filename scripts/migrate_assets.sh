@@ -102,6 +102,34 @@ if [[ "$copied_official_hub" == 1 ]]; then
   printf 'Original NetherGames Network Hub world copied from Lobby/worlds/Hub.\n' > "$DATA/.new-ng-original-hub"
 fi
 
+# On the BedWars/Hub instance, Soccer is a second gamemode with its own
+# plugin_data. Never replace the Hub with Soccer's original waiting template.
+if [[ "${NG_ENABLE_SOCCER:-1}" == 1 ]]; then
+  [[ -f "$ASSETS/Soccer/arenas/SC-1/level.dat" &&
+     -f "$ASSETS/Soccer/WaitingLobby/level.dat" ]] ||
+    die "Missing original Soccer SC-1 or WaitingLobby; sparse checkout must include Soccer."
+  for pair in "arenas" "WaitingLobby"; do
+    src="$ASSETS/Soccer/$pair"
+    dst="$DATA/plugin_data/xSoccer/$pair"
+    if [[ -e "$dst" || -L "$dst" ]]; then
+      echo "[new-ng] Preserving existing Soccer asset: $dst"
+    else
+      mkdir -p "$(dirname "$dst")"
+      cp -a -- "$src" "$dst"
+      echo "[new-ng] Copied original Soccer asset: $dst"
+    fi
+  done
+  soccer_credit="$DATA/plugin_data/xSoccer/NETHERGAMES_ASSETS_CREDIT.txt"
+  if [[ ! -e "$soccer_credit" ]]; then
+    cat > "$soccer_credit" <<'SOCCER_CREDIT'
+Original NetherGames Soccer SC-1 arena and waiting lobby.
+Source: https://github.com/NetherGamesMC/assets
+License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Soccer arena world is loaded separately; main Network Hub is unchanged.
+SOCCER_CREDIT
+  fi
+fi
+
 cat > "$DEST/NETHERGAMES_ASSETS_CREDIT.txt" <<'TXT'
 Original NetherGames Network Hub and ArcadeLobby worlds, plus BedWars arenas
 and waiting lobby. Copyright (c) NetherGames.
