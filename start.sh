@@ -7,6 +7,8 @@ STATE="$ROOT/.runtime"
 SOURCES="$ROOT/upstream"
 CACHE="$ROOT/.cache"
 GAME="${NG_GAME:-Bedwars}"
+SOCCER_ENABLED="${NG_ENABLE_SOCCER:-1}"
+[[ "$SOCCER_ENABLED" == 0 || "$SOCCER_ENABLED" == 1 ]] || { echo '[new-ng] ERROR: NG_ENABLE_SOCCER must be 0 or 1' >&2; exit 2; }
 case "$GAME" in
   Bedwars)
     DATA="$STATE/data"
@@ -156,6 +158,30 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" 
 
 fi
 
+# Install original Soccer in the main BedWars/Hub process. Keep a separate
+# PHAR and plugin_data so worlds and match state cannot collide with BedWars.
+if [[ "$GAME" == Bedwars && "$SOCCER_ENABLED" == 1 ]]; then
+  SOCCER_PHAR="$DATA/plugins/xSoccer.phar"
+  if ! phar_has_vendor "$SOCCER_PHAR" && [[ "${NG_REBUILD:-0}" != 1 ]] &&
+     phar_has_vendor "$STATE/soccer/data/plugins/xSoccer.phar"; then
+    log "Reusing previously built Soccer plugin"
+    cp "$STATE/soccer/data/plugins/xSoccer.phar" "$SOCCER_PHAR"
+  fi
+  if [[ "${NG_REBUILD:-0}" == 1 ]] || ! phar_has_vendor "$SOCCER_PHAR"; then
+    log "Compiling xSoccer for the main NetherGames server"
+    (
+      cd "$SOURCES/plugins/Soccer"
+      if [[ -f composer-build.json ]]; then manifest=composer-build.json; else manifest=composer.json; fi
+      "$PHP" "$SOURCES/plugins/scripts/merge-composer.php" "$manifest" "$SOURCES/plugins/shared/repositories.json" composer.merged.json
+      COMPOSER_ROOT_VERSION=dev-stable COMPOSER=composer.merged.json COMPOSER_MIRROR_PATH_REPOS=1 php_composer install --prefer-source --no-dev --no-interaction --no-progress
+      [[ -f vendor/autoload.php ]] || die "Composer did not create Soccer/vendor/autoload.php"
+      "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- --make . --relative . --out "$SOCCER_PHAR"
+      "$PHP" -dphar.readonly=0 "$ROOT/scripts/ensure_phar_vendor.php" "$PWD" "$SOCCER_PHAR"
+    )
+  fi
+  phar_has_vendor "$SOCCER_PHAR" || die "Soccer PHAR is missing Composer autoload. Set NG_ENABLE_SOCCER=0 to start BedWars without Soccer."
+fi
+
 # Refresh compatibility files in already-built PHARs without rebuilding Composer plugins.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/sync_core_phar.php" \
   "$SOURCES/axolotl" "$DATA/PocketMine-MP.phar"
@@ -163,7 +189,8 @@ fi
 # Retrofit already built PHARs too; this does not force a Composer reinstall.
 # The patched methods do not use the former TypeConverter argument.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
-  "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR"
+  "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
+  ${SOCCER_PHAR:+"$SOCCER_PHAR"}
 
 if [[ $EUID -eq 0 ]]; then
   systemctl start mariadb
