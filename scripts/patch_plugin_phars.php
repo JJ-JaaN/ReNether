@@ -913,6 +913,9 @@ PHP;
     // new-ng: wait inside Soccer's map, never at the BedWars Hub spawn.
     public function getWaitingLobbySpawn(): Location
     {
+        if ($this->world === null) {
+            return parent::getWaitingLobbySpawn();
+        }
         $world = $this->getWorld();
         return Location::fromObject($world->getSpawnLocation()->add(0.5, 0, 0.5), $world);
     }
