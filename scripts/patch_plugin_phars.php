@@ -853,6 +853,27 @@ PHP;
         exit(1);
     }
 
+    // Soccer ball is a match-only Human entity. Like BedWars' custom entities,
+    // it calls setCanSaveWithChunk(false) only after the parent constructor.
+    // Axolotl requires a non-persistent marker during construction instead.
+    $member = 'src/soccer/SCBall.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'class SCBall extends Human';
+        $after = 'class SCBall extends Human implements \pocketmine\entity\NeverSavedWithChunkEntity';
+        if (substr_count($content, $after) === 1) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Non-saved soccer ball\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected Soccer ball class declaration in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xSoccer.phar') {
+        fwrite(STDERR, "ERROR: Missing SCBall class in xSoccer PHAR.\n");
+        exit(1);
+    }
+
     // The original Map Selector uses the custom ZONES item. On clients
     // without the NetherGames item textures its name appears but its icon
     // is blank. Vanilla paper has a guaranteed Bedrock texture, while all
