@@ -853,6 +853,184 @@ PHP;
         exit(1);
     }
 
+    // Multi-game Hub: Soccer must not inherit BW's shared serverType,
+    // otherwise /sc conflicts with /bw and both modes name worlds Match-BW-*.
+    $member = 'src/soccer/Soccer.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = '    public function balanceQueuing(): bool';
+        $insert = <<<'PHP'
+    // new-ng main server Soccer tag: independent command and arena namespaces.
+    public function getMinigameTag(): string
+    {
+        return \NetherGames\NGEssentials\ServerManager::SC;
+    }
+
+PHP;
+        if (!str_contains($content, 'new-ng main server Soccer tag')) {
+            if (substr_count($content, $before) !== 1) {
+                fwrite(STDERR, "ERROR: Soccer tag insertion point missing in $member.\n");
+                exit(1);
+            }
+            $content = str_replace($before, $insert . $before, $content);
+        }
+        $before = <<<'PHP'
+    public function isStandAloneGame(): bool
+    {
+        return true;
+    }
+PHP;
+        $after = <<<'PHP'
+    public function isStandAloneGame(): bool
+    {
+        // new-ng: Soccer is part of the local Hub, not a proxy cluster.
+        return false;
+    }
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Hub Soccer gamemode\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $content = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected Soccer standalone setting in $member.\n");
+            exit(1);
+        }
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+        }
+    } elseif (basename($path) === 'xSoccer.phar') {
+        fwrite(STDERR, "ERROR: Soccer.php missing from xSoccer PHAR.\n");
+        exit(1);
+    }
+
+    // Soccer's waiting area uses its own original map spawn, not the Hub
+    // coordinate that NGEssentials returns for the BedWars serverType.
+    $member = 'src/soccer/SCArena.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = '    public function bootMinigame(): void';
+        $insert = <<<'PHP'
+    // new-ng: wait inside Soccer's map, never at the BedWars Hub spawn.
+    public function getWaitingLobbySpawn(): Location
+    {
+        $world = $this->getWorld();
+        return Location::fromObject($world->getSpawnLocation()->add(0.5, 0, 0.5), $world);
+    }
+
+PHP;
+        if (str_contains($content, 'new-ng: wait inside Soccer')) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / Soccer waiting spawn\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $insert . $before, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Soccer waiting spawn insertion point missing in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xSoccer.phar') {
+        fwrite(STDERR, "ERROR: SCArena.php missing from xSoccer PHAR.\n");
+        exit(1);
+    }
+
+    // Players must leave their current arena before joining another mode,
+    // otherwise two independent arena listeners will control one inventory.
+    $member = 'vendor/nethergamesmc/libminigames/Minigame.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+    final public function joinArena(Player $player, int $modeId = -1): bool
+    {
+        /** @var NGPlayer $player */
+        $ess = $this->getEssentials();
+PHP;
+        $after = <<<'PHP'
+    final public function joinArena(Player $player, int $modeId = -1): bool
+    {
+        // new-ng: block joining a second game while already in the other.
+        foreach (['xBedwars', 'xSoccer'] as $otherName) {
+            $otherGame = $player->getServer()->getPluginManager()->getPlugin($otherName);
+            if ($otherGame instanceof self && $otherGame !== $this &&
+                $otherGame->isEnabled() && $otherGame->getArena($player) !== null) {
+                $player->sendMessage('§cLeave your current game before joining another.');
+                return false;
+            }
+        }
+        /** @var NGPlayer $player */
+        $ess = $this->getEssentials();
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game join guard\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected Minigame::joinArena signature in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: libminigames Minigame missing from NGEssentials PHAR.\n");
+        exit(1);
+    }
+
+    // Minigame::getInstance() is a single static value shared by both modes.
+    // Join/quit events must report their actual arena plugin instead.
+    $member = 'vendor/nethergamesmc/libminigames/events/MinigameEvent.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'parent::__construct(Minigame::getInstance());';
+        $after = 'parent::__construct($arena->getPlugin());';
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game event owner\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected MinigameEvent plugin reference in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: MinigameEvent missing from NGEssentials PHAR.\n");
+        exit(1);
+    }
+
+    // Add a functional Soccer NPC to the reconstructed main Hub while
+    // retaining the already installed original NPC patch and other NPCs.
+    $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        if (str_contains($content, 'new-ng Network Hub: spawned')) {
+            $before = "['Arcade', 'ac.png', -16, 41, 13, 'arcade'],";
+            $after = $before . "\n                ['Soccer', 'sc.png', -19, 41, 13, 'soccer'],";
+            if (!str_contains($content, $after)) {
+                if (substr_count($content, $before) !== 1) {
+                    fwrite(STDERR, "ERROR: Cannot insert Soccer NPC into main Hub.\n");
+                    exit(1);
+                }
+                $content = str_replace($before, $after, $content);
+            }
+            $before = "} elseif (\$action === 'arcade') {";
+            $after = <<<'PHP'
+} elseif ($action === 'soccer') {
+                            $soccer = $player->getServer()->getPluginManager()->getPlugin('xSoccer');
+                            if ($soccer instanceof \soccer\Soccer && $soccer->isEnabled()) {
+                                $soccer->joinArena($player);
+                            } else {
+                                $player->sendMessage('§cSoccer is not available.');
+                            }
+                        } elseif ($action === 'arcade') {
+PHP;
+            if (!str_contains($content, $after)) {
+                if (substr_count($content, $before) !== 1) {
+                    fwrite(STDERR, "ERROR: Cannot set Soccer NPC join action.\n");
+                    exit(1);
+                }
+                $content = str_replace($before, $after, $content);
+            }
+            if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+                $updated[$member] = $content;
+            } else {
+                echo "[new-ng] Already compatible: " . basename($path) . " / playable Hub Soccer NPC\n";
+            }
+        }
+    }
+
     // Soccer ball is a match-only Human entity. Like BedWars' custom entities,
     // it calls setCanSaveWithChunk(false) only after the parent constructor.
     // Axolotl requires a non-persistent marker during construction instead.
