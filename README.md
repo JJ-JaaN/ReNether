@@ -22,6 +22,32 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
 
+## Soccer: zaseban testni server za 1v1
+
+Izvorni NetherGames `xSoccer` v2.0 ima najmanje **2 igrača** i **4 igrača po ekipi**. Dakle, dva igrača mogu testirati 1v1 (crveni protiv plavih). Utakmica traje 5 minuta. Soccer još nije runtime-testiran s Axolotl-PM 5.49.1.
+
+**Ne gasiti postojeći BedWars.** Na VPS-u u drugoj `tmux` sesiji:
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_GAME=Soccer bash ./start.sh 2>&1 | tee soccer.log
+```
+
+Soccer koristi **UDP 19134**, `.runtime/soccer/data/`, plugin `xSoccer.phar`, NGEssentials `serverType: SC` i originalnu mapu `SC-1`. BedWars ostaje na **UDP 19133** i u `.runtime/data/`. Oba profila imaju odvojene svjetove i konfiguracije, ali dijele razvojnu MariaDB bazu `newng`.
+
+`start.sh` dohvaća i `assets/Soccer/arenas/SC-1` te `assets/Soccer/WaitingLobby`, a postojeće kopije čuva. Soccer ne podržava `NG_REMIGRATE_ASSETS=1` jer je sigurnije izbjeći slučajno brisanje mapa.
+
+U Minecraft Bedrocku dodaj isti VPS/IP kao za BedWars, ali s portom **19134**. Zatim oba igrača upisuju:
+
+```text
+/sc join
+```
+
+Za ručni test u development modu postoji i `/sc start` kad si već u areni. Dva igrača trebaju biti u **različitim ekipama**, inače čekanje na uravnotežene timove može potrajati. Na VPS-u po potrebi dopusti `19134/udp` u firewallu i kod hosting providera.
+
+Ako se nešto sruši, sačuvaj cijeli `soccer.log`, osobito prvi `CRITICAL` ili `ERROR` i stack trace. Pripremljena je kompatibilnost za Soccer loptu, ali fiziku, prikaz modela i cijeli meč treba potvrditi u igri.
+
 ## Ponovna migracija iz starog BedWars Hub-a
 
 Ako je raniji `new-ng` postavio BedWars waiting mapu kao `worlds/Hub`,
