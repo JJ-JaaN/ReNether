@@ -735,7 +735,7 @@ PHP;
 PHP;
         // SW uses the same separate WaitingLobby template coordinates;
         // the public Network Hub spawn (-26.5,42,-22.5) is in the void there.
-        $swBefore = '($this->getPlugin()->getMinigameTag() === \\NetherGames\\NGEssentials\\ServerManager::BW)';
+        $swBefore = '$this->getPlugin()->getMinigameTag() === \\NetherGames\\NGEssentials\\ServerManager::BW';
         $swAfter = 'in_array($this->getPlugin()->getMinigameTag(), [\\NetherGames\\NGEssentials\\ServerManager::BW, \\NetherGames\\NGEssentials\\ServerManager::SW], true)';
         if (str_contains($content, $swBefore)) {
             $content = str_replace($swBefore, $swAfter, $content);
