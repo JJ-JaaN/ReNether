@@ -311,11 +311,16 @@ GRANT ALL PRIVILEGES ON newng.* TO 'newng'@'localhost';
 GRANT ALL PRIVILEGES ON newng.* TO 'newng'@'127.0.0.1';
 FLUSH PRIVILEGES;
 SQL
+# Shared player database: isolated SkyWars/Soccer instances must never re-import
+# the schema or overwrite records if BedWars initialized it already.
 if [[ ! -f "$STATE/db-initialized" ]]; then
   TABLES="$("${DATABASE[@]}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='newng';")"
-  [[ "$TABLES" == 0 ]] || die "Database newng is not empty: refusing automatic schema import"
-  "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/ngdata_players.sql"
-  "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/resources/stored_procedures.sql"
+  if [[ "$TABLES" == 0 ]]; then
+    "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/ngdata_players.sql"
+    "${DATABASE[@]}" newng < "$SOURCES/plugins/NGEssentials/resources/stored_procedures.sql"
+  else
+    die "Database newng already contains tables but the shared initialization marker is missing; inspect it manually before continuing."
+  fi
   touch "$STATE/db-initialized"
 fi
 
@@ -388,6 +393,7 @@ if [[ "${NG_BUILD_ONLY:-0}" == 1 ]]; then
   log "Build prepared and PHAR Composer autoloaders checked. Runtime compatibility NOT verified."
   exit 0
 fi
+# SkyWars/Soccer run in independent data dirs; keep BedWars on its configured port.
 # Minecraft might still be connecting to an old PocketMine on 19132.
 if command -v ss >/dev/null 2>&1; then
   log "Existing UDP listeners on 19132/19133:"
