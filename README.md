@@ -45,8 +45,9 @@ NG_ENABLE_SKYWARS=1 NG_ENABLE_SOCCER=0 NG_PORT=19132 bash ./start.sh 2>&1 | tee 
 Izvorni pluginovi dijele NGEssentials, static Minigame stanje, evente
 i neke Composer ovisnosti; mogući su konflikti pri učitavanju ili
 ulasku u meč. Provjeri poruke konzole i `/plugins`, zatim `/sw`.
-Ovim committom ne dodaje se SkyWars NPC u Hub niti je potvrđen
-ulazak u mapu. Ako bilo što ruši BedWars, vrati se na
+SkyWars NPC u glavnom Hubu sada ima klik koji pokušava pozvati
+`xSkywars->joinArena($player)` ako je plugin uključen. Tek na VPS-u
+treba potvrditi da učitava mapu i uspješno pokreće meč. Ako bilo što ruši BedWars, vrati se na
 `NG_ENABLE_SKYWARS=0 NG_PORT=19132 bash ./start.sh`;
 originalni podaci SkyWarsa ostat će sačuvani.
 
