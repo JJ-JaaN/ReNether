@@ -240,6 +240,36 @@ if [[ "$GAME" == Bedwars ]]; then
       --make . --relative . --out "$BRAND_PHAR"
   )
   [[ -s "$BRAND_PHAR" ]] || die "ReNetherBranding.phar build failed"
+
+  # Fail fast if a partially patched or old PHAR would advertise NG again.
+  "$PHP" -r '
+    try {
+      $ng = new Phar($argv[1]);
+      $brand = new Phar($argv[2]);
+      $checks = [
+        ["src/NetherGames/NGEssentials/ServerManager.php", "§6§lReNether§r"],
+        ["src/NetherGames/NGEssentials/NGEssentials.php", "ReNether "]
+      ];
+      foreach ($checks as [$file, $needle]) {
+        if (!isset($ng[$file]) || !str_contains($ng[$file]->getContent(), $needle)) {
+          fwrite(STDERR, "[ReNether] ERROR: branding missing from PHAR member " . $file . "\\n");
+          exit(1);
+        }
+      }
+      $brandMain = "src/renether/branding/Main.php";
+      if (!isset($brand["plugin.yml"]) ||
+          !isset($brand[$brandMain]) ||
+          !str_contains($brand[$brandMain]->getContent(), "getNetwork()->setName")) {
+        fwrite(STDERR, "[ReNether] ERROR: built branding plugin is incomplete\\n");
+        exit(1);
+      }
+      echo "[ReNether] Verified MOTD/brand in built PHARs\\n";
+    } catch (Throwable $e) {
+      fwrite(STDERR, "[ReNether] ERROR verifying PHAR branding: " . $e->getMessage() . "\\n");
+      exit(1);
+    }
+  ' "$DATA/plugins/NGEssentials.phar" "$BRAND_PHAR" ||
+    die "Cannot start with old NG branding PHAR."
 fi
 
 if [[ $EUID -eq 0 ]]; then
