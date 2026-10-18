@@ -2,13 +2,15 @@
 
 ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
 
+**Licence i prava:** [ATTRIBUTION.md](ATTRIBUTION.md) navodi izvorne autore, a [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md) dokumentira uvjete, obveze prema mrežnim korisnicima i još neriješeno neslaganje između AGPL licence i vlasničkih zaglavlja dijela NetherGames pluginova. **Ne smatrati projekt potpuno pravno usklađenim dok se to ne razjasni.**
+
 **Status: eksperimentalno.** Originalni pluginovi i dalje mogu imati nekompatibilnosti s Axolotl-PM 5.49.1. Promjena imena ne mijenja unutarnje klase, izvorne licence ili API-je.
 
 ## Ubuntu 24.04+ (odvojeni testni server)
 
 ```bash
-git clone git@github.com:JJ-JaaN/new-ng.git
-cd new-ng
+git clone git@github.com:JJ-JaaN/ReNether.git
+cd ReNether
 chmod +x start.sh
 ./start.sh
 ```
