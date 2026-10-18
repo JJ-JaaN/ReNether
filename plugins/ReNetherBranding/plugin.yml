@@ -1,0 +1,7 @@
+name: ReNetherBranding
+main: renether\branding\Main
+version: 1.0.0
+api: 5.0.0
+load: POSTWORLD
+description: Rebrands legacy signs and game map text for ReNether.
+author: ReNether
