@@ -1062,6 +1062,59 @@ PHP;
         }
     }
 
+    // SkyWars was originally created as a visible but deliberately offline
+    // Hub NPC. Wire its existing tap handler to xSkywars now that the game
+    // can load alongside BedWars. Works on already-patched PHARs too.
+    $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $oldNpc = "['SkyWars', 'sw.png', 16, 41, -1, 'offline']";
+        $newNpc = "['SkyWars', 'sw.png', 16, 41, -1, 'skywars']";
+        if (str_contains($content, $oldNpc)) {
+            $content = str_replace($oldNpc, $newNpc, $content);
+        } elseif (!str_contains($content, $newNpc)) {
+            fwrite(STDERR, "ERROR: SkyWars Hub NPC definition not found; refusing unsafe replacement.\n");
+            exit(1);
+        }
+        $oldAction = <<<'PHP'
+} elseif ($action === 'arcade') {
+PHP;
+        $newAction = <<<'PHP'
+} elseif ($action === 'skywars') {
+                            $skywars = $player->getServer()->getPluginManager()->getPlugin('xSkywars');
+                            if ($skywars instanceof \skywars\Skywars && $skywars->isEnabled()) {
+                                $skywars->joinArena($player);
+                            } else {
+                                $player->sendMessage('§cSkyWars is not running.');
+                            }
+                        } elseif ($action === 'arcade') {
+PHP;
+        if (!str_contains($content, $newAction)) {
+            if (substr_count($content, $oldAction) !== 1) {
+                fwrite(STDERR, "ERROR: SkyWars Hub NPC callback insertion point not found.\n");
+                exit(1);
+            }
+            $content = str_replace($oldAction, $newAction, $content);
+        }
+        $oldText = "($action === 'bedwars' ? '§aTap to play' :";
+        $newText = "($action === 'bedwars' || $action === 'skywars' ? '§aTap to play' :";
+        if (str_contains($content, $oldText)) {
+            $content = str_replace($oldText, $newText, $content);
+        } elseif (!str_contains($content, $newText)) {
+            fwrite(STDERR, "ERROR: SkyWars Hub NPC label insertion point not found.\n");
+            exit(1);
+        }
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+            echo "[ReNether] Patched SkyWars Hub NPC tap action\n";
+        } else {
+            echo "[ReNether] Already compatible: SkyWars Hub NPC tap action\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing EntityManager for SkyWars Hub NPC.\n");
+        exit(1);
+    }
+
     // ReNether no longer offers Soccer. Remove the NPC from PHARs patched by
     // previous versions, without affecting saved worlds or Hub characters.
     $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
