@@ -24,6 +24,39 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
 
+## Eksperimentalni SkyWars (odvojena instanca)
+
+SkyWars koristi originalni `NetherGamesMC/plugins/Skywars` (`xSkywars`)
+te CC BY 4.0 karte iz `NetherGamesMC/assets/Skywars`. Prvi pokušaj
+izoliran je od BedWarsa: zasebna mapa podataka
+`.runtime/skywars/data/`, vlastiti svjetovi, konfiguracija i `xSkywars.phar`,
+zadani **UDP 19134**. Postojeći BedWars ostaje na svojem portu
+(primjerice 19132). Soccer ostaje isključen.
+
+Prije pokretanja provjeri dopuštenja za uporabu izvornog SkyWars
+plugina. `Skywars/composer.json` navodi `proprietary`, a dio
+zaglavlja zabranjuje izmjene bez dopuštenja: vidi
+[LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md). Ovaj tehnički profil
+**ne predstavlja pravno odobrenje**.
+
+Za probni start u zasebnoj `tmux` sesiji (ne gasiti BedWars):
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+tmux new -s renether-sw
+NG_GAME=Skywars NG_PORT=19134 bash ./start.sh 2>&1 | tee skywars.log
+```
+
+Kada je server pokrenut, odvoji tmux pomoću `Ctrl+B`, zatim `D`.
+Nakon toga pregledaj `skywars.log`, osobito greške pri učitavanju
+plugina i mapa. Nije potvrđeno da će originalni xSkywars raditi bez
+dodatnih kompatibilnosnih popravaka na Axolotl-PM 5.49.1.
+
+SkyWars **nije ugrađen kao NPC u glavni Hub**; zasad se spaja zasebno
+na port 19134. Ne pokretati `NG_REMIGRATE_ASSETS=1` na tom profilu,
+jer njegovo prisilno premještanje mapa nije podržano.
+
 ## Aktivni gamemodeovi
 
 **BedWars je uključen, Soccer je isključen.** Zadan je samo glavni poslužitelj **ReNether** na UDP **19133**. Novi `start.sh` ne preuzima Soccer mape, ne gradi `xSoccer.phar` i ne stvara Soccer NPC-ja. Ako je taj plugin ranije postojao, pri sljedećem pokretanju se automatski premješta u `xSoccer.phar.disabled`; njegovi podaci ostaju spremljeni i može se ručno ponovno omogućiti u budućnosti.
