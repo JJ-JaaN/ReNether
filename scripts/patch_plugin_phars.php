@@ -1267,6 +1267,37 @@ PHP;
                 '§6§lReNether§r§7: §cReNether is full,',
         ],
     ];
+    // Public-facing scoreboards: point to the real ReNether GitHub project.
+    // Do not rewrite ngmc.co API endpoints, CDN hosts or internal identifiers.
+    $projectUrl = 'github.com/JJ-JaaN/ReNether';
+    foreach ([
+        'src/NetherGames/NGEssentials/player/PlayerManager.php',
+        'vendor/nethergamesmc/libminigames/Arena.php',
+        'src/bedwars/BWTeam.php',
+        'src/skywars/handler/NormalHandler.php',
+        'src/skywars/handler/DuelsHandler.php',
+    ] as $member) {
+        if (!isset($phar[$member])) {
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $content = str_replace(
+            ["CustomIcon::NETHERGAMES . TextFormat::GOLD . 'ngmc.co'",
+             'CustomIcon::NETHERGAMES . TextFormat::GOLD . "ngmc.co"',
+             "TextFormat::GOLD . 'ReNether'",
+             'TextFormat::GOLD . "ReNether"'],
+            ["TextFormat::GOLD . '" . $projectUrl . "'",
+             'TextFormat::GOLD . "' . $projectUrl . '"',
+             "TextFormat::GOLD . '" . $projectUrl . "'",
+             'TextFormat::GOLD . "' . $projectUrl . '"'],
+            $content
+        );
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+            echo "[ReNether] Updated public GUI branding: $member\n";
+        }
+    }
+
     foreach ($branding as $member => $replacements) {
         if (!isset($phar[$member])) {
             continue;
