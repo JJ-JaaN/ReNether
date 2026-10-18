@@ -38,7 +38,30 @@ Za izolirano testiranje Soccera u budućnosti možeš eksplicitno zadati `NG_ENA
 
 ### Ime GitHub repozitorija i postojeće mape
 
-U kodu i igri ime je `ReNether`. Izvorna GitHub adresa ostaje `JJ-JaaN/new-ng` dok vlasnik ne promijeni Repository name u **Settings → General**. Isto tako, postojeća lokalna putanja `~/new-ng` ostaje valjana. Nakon promjene na GitHubu možeš prilagoditi `git remote`; preimenovanje lokalne mape nije potrebno za rad.
+U kodu i igri ime je `ReNether`. GitHub repozitorij je već preimenovan u `JJ-JaaN/ReNether`; lokalna putanja `~/new-ng` može ostati ista. Za ažuriranje starog `origin` URL-a koristi `git remote set-url origin git@github.com:JJ-JaaN/ReNether.git`.
+
+## ReNether prikaz: MOTD, logo, natpisi na pločama
+
+Za razliku od stare verzije, sada se **dva odvojena izvora** naziva ažuriraju: `server.properties` (MOTD) i `NGEssentials.phar` `ServerManager::getMotd()` (odgovor na Bedrock query). `NGEssentials::getLogo()` prikazuje ReNether u igri. Glavni chat-prefiks i BedWars scoreboard također su preimenovani.
+
+`ReNetherBranding.phar` gradi se automatski tijekom pokretanja. Registrira `ChunkLoadEvent`, prolazi postojeće učitane chunkove i mijenja **tekst stvarnih Minecraft ploča** koji sadrži `NetherGames`, `ngmc.co` ili samostalni `NG`; podržani su i kodovi boja. Promjene se spremaju normalnim World API-jem. Ploče iz učitanih arena obrađuju se kad se učitaju. To ne mijenja natpise fizički izgrađene od blokova, slikovne teksture ni licence u izvornom kodu.
+
+Prije prvog ažuriranja ploča starter automatski sprema **jednokratni backup** `worlds/Hub` i `worlds/ArcadeLobby` u `.runtime/branding-backups/`. Izvorni BedWars podaci, arena-templateovi i MariaDB nisu preimenovani niti resetirani.
+
+GitHub repozitorij se sada zove [JJ-JaaN/ReNether](https://github.com/JJ-JaaN/ReNether), i zato provjeri `origin` pa povuci novu verziju **nakon gašenja servera**:
+
+```bash
+cd ~/new-ng
+git remote set-url origin git@github.com:JJ-JaaN/ReNether.git
+git pull --ff-only
+NG_ENABLE_SOCCER=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-branding.log
+```
+
+Provjeri da log sadrži `Configured server.properties MOTD: motd=ReNether`, `actual Bedrock query MOTD` ili `Already compatible`, te `ReNetherBranding`. U igri se ploče ažuriraju kad igrač učita njihove chunkove. Za provjeru stvarnog sadržaja `server.properties`:
+
+```bash
+grep '^motd=' ~/new-ng/.runtime/data/server.properties
+```
 
 ## Ponovna migracija iz starog BedWars Hub-a
 
