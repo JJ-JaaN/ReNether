@@ -1096,8 +1096,12 @@ PHP;
             }
             $content = str_replace($oldAction, $newAction, $content);
         }
-        $oldText = "($action === 'bedwars' ? '§aTap to play' :";
-        $newText = "($action === 'bedwars' || $action === 'skywars' ? '§aTap to play' :";
+        $oldText = <<<'PHP'
+($action === 'bedwars' ? '§aTap to play' :
+PHP;
+        $newText = <<<'PHP'
+($action === 'bedwars' || $action === 'skywars' ? '§aTap to play' :
+PHP;
         if (str_contains($content, $oldText)) {
             $content = str_replace($oldText, $newText, $content);
         } elseif (!str_contains($content, $newText)) {
