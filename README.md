@@ -1,8 +1,8 @@
-# new-ng (privatni razvojni projekt)
+# ReNether (privatni razvojni projekt)
 
-Pokušaj migracije NetherGames BedWars + NGEssentials na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
+ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
 
-**Status: eksperimentalno. Nije potvrđena kompatibilnost niti uspješan rad BedWarsa.** Starter prenosi dio potrebnih API-ja, ali NetherGamesovi plugini očekuju starije `ProtocolInfo::PROTOCOL_*` konstante, različite klase te druge izmjene. Ne gasiti postojeći Docker BedWars dok novi build i testovi ne prođu.
+**Status: eksperimentalno.** Originalni pluginovi i dalje mogu imati nekompatibilnosti s Axolotl-PM 5.49.1. Promjena imena ne mijenja unutarnje klase, izvorne licence ili API-je.
 
 ## Ubuntu 24.04+ (odvojeni testni server)
 
@@ -22,35 +22,27 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
 
-## Soccer + BedWars na jednom serveru (UDP 19133)
+## Aktivni gamemodeovi
 
-Izvorni NetherGames `xSoccer` v2.0 igra se s najmanje **2 igrača** (1v1) i najviše 4 po ekipi. Za test je **automatski uključen u glavni server** zajedno s `xBedwars`. **Nema drugog porta ni proxyja.** Ne treba se spajati na stari odvojeni Soccer port 19134.
+**BedWars je uključen, Soccer je isključen.** Zadan je samo glavni poslužitelj **ReNether** na UDP **19133**. Novi `start.sh` ne preuzima Soccer mape, ne gradi `xSoccer.phar` i ne stvara Soccer NPC-ja. Ako je taj plugin ranije postojao, pri sljedećem pokretanju se automatski premješta u `xSoccer.phar.disabled`; njegovi podaci ostaju spremljeni i može se ručno ponovno omogućiti u budućnosti.
 
-Za prvi test **ugasi samo glavni BedWars proces** naredbom `stop`, a zatim:
+Za prvi restart zaustavi postojeći server s `stop`, pa pokreni:
 
 ```bash
 cd ~/new-ng
 git pull --ff-only
-NG_PORT=19133 bash ./start.sh 2>&1 | tee soccer-main.log
+NG_PORT=19133 bash ./start.sh 2>&1 | tee renether.log
 ```
 
-Oba igrača povezuju se na uobičajeni BedWars server, isti IP i **UDP 19133**, te pokreću `/sc join`. U originalnom Network Hubu nalazi se i novi Soccer NPC (blizu Arcade NPC-ja); BedWars NPC i `/bw join` i dalje rade. `/sc leave` vraća u Hub. Igrači ne mogu istovremeno biti u dva minigamea.
+Za izolirano testiranje Soccera u budućnosti možeš eksplicitno zadati `NG_ENABLE_SOCCER=1`, ali **ReNether ga po zadanim postavkama ne učitava**. Promjena imena ne resetira `newng` MariaDB bazu, `.runtime/data/`, `Hub` ili `BedWars` svjetove.
 
-Soccer automatski priprema `plugin_data/xSoccer/arenas/SC-1` i `plugin_data/xSoccer/WaitingLobby` iz originalnih asseta, bez mijenjanja `worlds/Hub`, BedWars arena, podataka o igračima ili MariaDB baze. Komanda za ručno pokretanje `/sc start` dostupna je u development modu kad si u areni. Dvoje igrača trebaju biti u suprotnim ekipama.
+### Ime GitHub repozitorija i postojeće mape
 
-Za hitan povratak na BedWars bez Soccera (bez brisanja podataka):
-
-```bash
-NG_ENABLE_SOCCER=0 NG_PORT=19133 bash ./start.sh
-```
-
-Ovo premješta Soccer PHAR u `.disabled` datoteku; sljedeće normalno pokretanje vratit će ga automatski.
-
-**Status: neprovjereno na stvarnom VPS-u.** Prvi test neka bude `/sc join`, provjera lopte i petominutni 1v1. Ako se dogodi `CRITICAL`/`ERROR`, pošalji početni stack trace iz `soccer-main.log`. Stari način `NG_GAME=Soccer` na zasebnom portu ostaje dostupan samo za dodatne izolirane testove.
+U kodu i igri ime je `ReNether`. Izvorna GitHub adresa ostaje `JJ-JaaN/new-ng` dok vlasnik ne promijeni Repository name u **Settings → General**. Isto tako, postojeća lokalna putanja `~/new-ng` ostaje valjana. Nakon promjene na GitHubu možeš prilagoditi `git remote`; preimenovanje lokalne mape nije potrebno za rad.
 
 ## Ponovna migracija iz starog BedWars Hub-a
 
-Ako je raniji `new-ng` postavio BedWars waiting mapu kao `worlds/Hub`,
+Ako je raniji `ReNether` postavio BedWars waiting mapu kao `worlds/Hub`,
 **najprije ugasi server** naredbom `stop` u konzoli (ili kroz tmux).
 Zatim:
 
