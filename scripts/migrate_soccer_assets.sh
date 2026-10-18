@@ -4,7 +4,7 @@ set -Eeuo pipefail
 [[ $# -eq 2 ]] || { echo "Usage: migrate_soccer_assets.sh <assets-checkout> <data-dir>" >&2; exit 2; }
 ASSETS="$(realpath "$1")"
 DATA="$(realpath -m "$2")"
-die(){ printf '[new-ng] ERROR: %s\n' "$*" >&2; exit 1; }
+die(){ printf '[ReNether] ERROR: %s\n' "$*" >&2; exit 1; }
 
 # Keep destructive remigration out of the first Soccer experiment.
 [[ "${NG_REMIGRATE_ASSETS:-0}" != 1 ]] ||
@@ -29,11 +29,11 @@ targets=(
 for i in "${!sources[@]}"; do
   rel="${targets[$i]}"
   if [[ -e "$DATA/$rel" || -L "$DATA/$rel" ]]; then
-    echo "[new-ng] Preserving existing Soccer asset: $rel"
+    echo "[ReNether] Preserving existing Soccer asset: $rel"
   else
     mkdir -p "$DATA/$(dirname "$rel")"
     cp -a -- "${sources[$i]}" "$DATA/$rel"
-    echo "[new-ng] Copied Soccer asset: $rel"
+    echo "[ReNether] Copied Soccer asset: $rel"
   fi
 done
 
@@ -47,4 +47,4 @@ https://creativecommons.org/licenses/by/4.0/
 Soccer profile is a separate experimental instance from BedWars.
 TXT
 fi
-echo "[new-ng] Soccer map and waiting lobby ready."
+echo "[ReNether] Soccer map and waiting lobby ready."
