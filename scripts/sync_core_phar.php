@@ -65,9 +65,9 @@ if ($updates !== []) {
     $phar->startBuffering();
     foreach ($updates as $member => $source) {
         $phar->addFromString($member, $source);
-        echo "[new-ng] Synced core compatibility: $member\n";
+        echo "[ReNether] Synced core compatibility: $member\n";
     }
     $phar->stopBuffering();
 } else {
-    echo "[new-ng] Axolotl core compatibility already up to date.\n";
+    echo "[ReNether] Axolotl core compatibility already up to date.\n";
 }
