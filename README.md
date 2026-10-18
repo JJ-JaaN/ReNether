@@ -24,6 +24,36 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
 
 
+## BedWars + SkyWars na jednom portu (eksperimentalno)
+
+Za zajednički **UDP 19132** i isti Hub koristi se **jedna** Axolotl-PM
+instanca koja opcionalno učitava oba plugina. SkyWars podaci spremaju se
+odvojeno u `plugin_data/xSkywars`, a BedWars ostaje u
+`plugin_data/xBedwars`. Mape su originalne iz izvornog CC BY 4.0
+repozitorija. Soccer ostaje isključen.
+
+Najprije zaustavi glavni server (samo jednom) i provjeri da su svjetovi
+sigurnosno kopirani, zatim:
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_SKYWARS=1 NG_ENABLE_SOCCER=0 NG_PORT=19132 bash ./start.sh 2>&1 | tee renether.log
+```
+
+**Ovo je probna integracija**, nije potvrđeno funkcionalan SkyWars.
+Izvorni pluginovi dijele NGEssentials, static Minigame stanje, evente
+i neke Composer ovisnosti; mogući su konflikti pri učitavanju ili
+ulasku u meč. Provjeri poruke konzole i `/plugins`, zatim `/sw`.
+Ovim committom ne dodaje se SkyWars NPC u Hub niti je potvrđen
+ulazak u mapu. Ako bilo što ruši BedWars, vrati se na
+`NG_ENABLE_SKYWARS=0 NG_PORT=19132 bash ./start.sh`;
+originalni podaci SkyWarsa ostat će sačuvani.
+
+**Pravna napomena:** `Skywars/composer.json` navodi `proprietary`;
+za javno izvođenje i izmjene valja prethodno razjasniti dopuštenja
+nositelja prava, bez obzira na dostupnost izvora.
+
 ## Eksperimentalni SkyWars (odvojena instanca)
 
 SkyWars koristi originalni `NetherGamesMC/plugins/Skywars` (`xSkywars`)
