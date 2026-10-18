@@ -285,10 +285,8 @@ if [[ ! -f "$DATA/server.properties" ]]; then
   cp "$SOURCES/plugins/docker/server.properties" "$DATA/server.properties"
   sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e "s/^motd=.*/motd=ReNether/" "$DATA/server.properties"
 fi
-# The Bedrock server list name is also supplied by NGEssentials' query
-# listener; that path is patched to ReNether inside NGEssentials.phar.
-log "Configured server.properties MOTD: $(grep '^motd=' "$DATA/server.properties" | tail -n1)"
-log "Code revision: $(git -C "$ROOT" rev-parse --short HEAD)"
+# The Bedrock name also comes from NGEssentials::getMotd() and Network::setName().
+# Those paths are patched and the branding plugin enforces the RakNet name.
 # A requested full asset remigration explicitly selects the old Network Hub
 # as the main world, without touching other user server.properties settings.
 if [[ "$GAME" == Bedwars && "${NG_REMIGRATE_ASSETS:-0}" == 1 ]]; then
@@ -306,6 +304,8 @@ else
   printf '\nmotd=ReNether\n' >> "$DATA/server.properties"
 fi
 
+log "Configured server.properties MOTD: $(grep '^motd=' "$DATA/server.properties" | tail -n1)"
+log "Code revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 if [[ ! -f "$DATA/pocketmine.yml" ]]; then
   cp "$SOURCES/plugins/docker/Chunk_Ticking_pocketmine.yml" "$DATA/pocketmine.yml"
   sed -i -e 's/^  enable-encryption: false/  enable-encryption: true/' -e 's/^  enable-input: false/  enable-input: true/' "$DATA/pocketmine.yml"
@@ -331,6 +331,11 @@ chmod 600 "$CREDENTIALS"
 if [[ "${NG_BUILD_ONLY:-0}" == 1 ]]; then
   log "Build prepared and PHAR Composer autoloaders checked. Runtime compatibility NOT verified."
   exit 0
+fi
+# Minecraft might still be connecting to an old PocketMine on 19132.
+if command -v ss >/dev/null 2>&1; then
+  log "Existing UDP listeners on 19132/19133:"
+  ss -lunp 2>/dev/null | grep -E ':(19132|19133)([[:space:]]|$)' || true
 fi
 log "Starting ReNether $GAME on UDP $PORT (NO Docker)"
 cd "$DATA"
