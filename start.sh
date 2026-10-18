@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# new-ng: standalone bootstrap for BedWars or Soccer (experimental port; no Docker).
+# ReNether: Minecraft Bedrock server bootstrap (experimental port; no Docker).
 set -Eeuo pipefail
 cd "$(dirname "$(realpath "$0")")"
 ROOT="$PWD"
@@ -7,8 +7,8 @@ STATE="$ROOT/.runtime"
 SOURCES="$ROOT/upstream"
 CACHE="$ROOT/.cache"
 GAME="${NG_GAME:-Bedwars}"
-SOCCER_ENABLED="${NG_ENABLE_SOCCER:-1}"
-[[ "$SOCCER_ENABLED" == 0 || "$SOCCER_ENABLED" == 1 ]] || { echo '[new-ng] ERROR: NG_ENABLE_SOCCER must be 0 or 1' >&2; exit 2; }
+SOCCER_ENABLED="${NG_ENABLE_SOCCER:-0}"
+[[ "$SOCCER_ENABLED" == 0 || "$SOCCER_ENABLED" == 1 ]] || { echo '[ReNether] ERROR: NG_ENABLE_SOCCER must be 0 or 1' >&2; exit 2; }
 case "$GAME" in
   Bedwars)
     DATA="$STATE/data"
@@ -17,13 +17,14 @@ case "$GAME" in
     DEFAULT_PORT=19133
     ;;
   Soccer)
+    [[ "$SOCCER_ENABLED" == 1 ]] || { echo "[ReNether] Soccer is disabled. Explicit NG_ENABLE_SOCCER=1 required to run it." >&2; exit 2; }
     DATA="$STATE/soccer/data"
     MINIGAME_PHAR="xSoccer.phar"
     SERVER_TYPE="SC"
     DEFAULT_PORT=19134
     ;;
   *)
-    echo "[new-ng] ERROR: Unsupported NG_GAME=$GAME (use Bedwars or Soccer)" >&2
+    echo "[ReNether] ERROR: Unsupported NG_GAME=$GAME (use Bedwars, or opt into Soccer)" >&2
     exit 2
     ;;
 esac
@@ -34,8 +35,8 @@ DEVTOOLS="$CACHE/DevTools.phar"
 PORT="${NG_PORT:-$DEFAULT_PORT}"
 mkdir -p "$STATE" "$CACHE" "$SOURCES" "$DATA/plugins" "$DATA/worlds" "$DATA/plugin_data/NGEssentials/credentials" "$PHP_HOME"
 chmod 700 "$STATE"
-log(){ printf '[new-ng] %s\n' "$*"; }
-die(){ printf '[new-ng] ERROR: %s\n' "$*" >&2; exit 1; }
+log(){ printf '[ReNether] %s\n' "$*"; }
+die(){ printf '[ReNether] ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT>0 && PORT<65536 )) || die "Invalid NG_PORT: $PORT"
 
 if [[ ! -f "$STATE/dependencies-installed" ]]; then
@@ -72,12 +73,16 @@ if [[ ! -d "$SOURCES/plugins/.git" ]]; then
   git clone --depth 1 https://github.com/NetherGamesMC/plugins.git "$SOURCES/plugins"
 fi
 if [[ ! -d "$SOURCES/assets/.git" ]]; then
-  log "Sparse-cloning official NetherGames Lobby, BedWars and Soccer assets"
+  log "Sparse-cloning original BedWars and Lobby assets"
   git clone --filter=blob:none --sparse https://github.com/NetherGamesMC/assets.git "$SOURCES/assets"
 fi
 # Existing installs originally checked out only Bedwars. Add Lobby even on
 # previously cloned assets; keep both the Network Hub and BedWars waiting area.
-git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Soccer
+if [[ "$SOCCER_ENABLED" == 1 ]]; then
+  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Soccer
+else
+  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby
+fi
 python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
 if [[ "$GAME" == Soccer ]]; then
   bash "$ROOT/scripts/migrate_soccer_assets.sh" "$SOURCES/assets" "$DATA"
@@ -125,7 +130,7 @@ fi
 if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/$MINIGAME_PHAR" || "${NG_REBUILD:-0}" == 1 ]] ||
    ! phar_has_vendor "$DATA/plugins/NGEssentials.phar" ||
    ! phar_has_vendor "$DATA/plugins/$MINIGAME_PHAR"; then
-  log "Preparing PocketMine and NetherGames plugins (experimental, may fail)"
+  log "Preparing ReNether Bedrock server plugins (experimental, may fail)"
   if [[ ! -s "$DATA/PocketMine-MP.phar" || "${NG_REBUILD:-0}" == 1 ]]; then
     (
       cd "$SOURCES/axolotl"
@@ -181,7 +186,7 @@ if [[ "$GAME" == Bedwars && "$SOCCER_ENABLED" == 1 ]]; then
     cp "$STATE/soccer/data/plugins/xSoccer.phar" "$SOCCER_PHAR"
   fi
   if [[ "${NG_REBUILD:-0}" == 1 ]] || ! phar_has_vendor "$SOCCER_PHAR"; then
-    log "Compiling xSoccer for the main NetherGames server"
+    log "Compiling optional xSoccer for ReNether"
     (
       cd "$SOURCES/plugins/Soccer"
       if [[ -f composer-build.json ]]; then manifest=composer-build.json; else manifest=composer.json; fi
@@ -246,7 +251,7 @@ SQL
 
 if [[ ! -f "$DATA/server.properties" ]]; then
   cp "$SOURCES/plugins/docker/server.properties" "$DATA/server.properties"
-  sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e "s/^motd=.*/motd=new-ng $GAME/" "$DATA/server.properties"
+  sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e "s/^motd=.*/motd=ReNether/" "$DATA/server.properties"
 fi
 # A requested full asset remigration explicitly selects the old Network Hub
 # as the main world, without touching other user server.properties settings.
@@ -257,6 +262,14 @@ if [[ "$GAME" == Bedwars && "${NG_REMIGRATE_ASSETS:-0}" == 1 ]]; then
     printf '\nlevel-name=Hub\n' >> "$DATA/server.properties"
   fi
 fi
+# Always refresh the public-facing brand on existing instances as well as
+# first-time installs. Preserve all other server.properties fields.
+if grep -q '^motd=' "$DATA/server.properties"; then
+  sed -i 's/^motd=.*/motd=ReNether/' "$DATA/server.properties"
+else
+  printf '\nmotd=ReNether\n' >> "$DATA/server.properties"
+fi
+
 if [[ ! -f "$DATA/pocketmine.yml" ]]; then
   cp "$SOURCES/plugins/docker/Chunk_Ticking_pocketmine.yml" "$DATA/pocketmine.yml"
   sed -i -e 's/^  enable-encryption: false/  enable-encryption: true/' -e 's/^  enable-input: false/  enable-input: true/' "$DATA/pocketmine.yml"
@@ -283,6 +296,6 @@ if [[ "${NG_BUILD_ONLY:-0}" == 1 ]]; then
   log "Build prepared and PHAR Composer autoloaders checked. Runtime compatibility NOT verified."
   exit 0
 fi
-log "Starting experimental new-ng $GAME on UDP $PORT (NO Docker)"
+log "Starting ReNether $GAME on UDP $PORT (NO Docker)"
 cd "$DATA"
 exec "$PHP" ./PocketMine-MP.phar --no-wizard --disable-ansi
