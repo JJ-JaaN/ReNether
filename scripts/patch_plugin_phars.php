@@ -760,7 +760,7 @@ PHP;
             $location = new Location(0.5, 65, 0.5, $location->getWorld(), 0, 0);
         }
         if ($this->getPlugin()->getMinigameTag() === \NetherGames\NGEssentials\ServerManager::SW &&
-            $this->isWaitingLobby()) {
+            $this->getPlugin()->hasWaitingLobby()) {
             $location = new Location(128.5, 121, 128.5, $location->getWorld(), 0, 0);
         }
 
