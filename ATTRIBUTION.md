@@ -1,6 +1,6 @@
 # Izvori, autori i licence
 
-Projekt **new-ng** je neovisni pokušaj kompatibilnosti. Nije službeni NetherGames, Axolotl-PM, PocketMine niti Mojang projekt.
+Projekt **ReNether** je neovisni projekt koji koristi kompatibilnosne prilagodbe. Nije službeni NetherGames, Axolotl-PM, PocketMine niti Mojang projekt.
 
 | Komponenta | Autori / nositelji prava | Licenca | Izvor |
 | --- | --- | --- | --- |
