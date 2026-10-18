@@ -296,15 +296,24 @@ if [[ "$GAME" == Bedwars && "${NG_REMIGRATE_ASSETS:-0}" == 1 ]]; then
     printf '\nlevel-name=Hub\n' >> "$DATA/server.properties"
   fi
 fi
+# Keep the real listening port aligned with NG_PORT even on existing installs.
+# Previously only first-time server.properties creation applied the port.
+if grep -q '^server-port=' "$DATA/server.properties"; then
+  sed -i "s/^server-port=.*/server-port=$PORT/" "$DATA/server.properties"
+else
+  printf 'server-port=%s\n' "$PORT" >> "$DATA/server.properties"
+fi
+
 # Always refresh the public-facing brand on existing instances as well as
 # first-time installs. Preserve all other server.properties fields.
 if grep -q '^motd=' "$DATA/server.properties"; then
   sed -i 's/^motd=.*/motd=ReNether/' "$DATA/server.properties"
 else
-  printf '\nmotd=ReNether\n' >> "$DATA/server.properties"
+  printf 'motd=ReNether\n' >> "$DATA/server.properties"
 fi
 
 log "Configured server.properties MOTD: $(grep '^motd=' "$DATA/server.properties" | tail -n1)"
+log "Configured listening port: $(grep '^server-port=' "$DATA/server.properties" | tail -n1)"
 log "Code revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 if [[ ! -f "$DATA/pocketmine.yml" ]]; then
   cp "$SOURCES/plugins/docker/Chunk_Ticking_pocketmine.yml" "$DATA/pocketmine.yml"
