@@ -1342,6 +1342,45 @@ PHP;
         exit(1);
     }
 
+    // SkyWars match entities explicitly disable chunk saving, but Axolotl
+    // checks persistence before their constructors reach that call. Treat all
+    // these match-scoped entities as non-persistent from construction onward.
+    foreach ([
+        'SWEnderPearl' => 'EnderPearl',
+        'SWSplashPotion' => 'SplashPotion',
+        'SWZombie' => 'Zombie',
+        'SWSkeleton' => 'Skeleton',
+        'LuckyBlock' => 'Human',
+        'EnderDragon' => 'Living',
+    ] as $entityClass => $baseClass) {
+        $member = "src/skywars/entities/$entityClass.php";
+        if (!isset($phar[$member])) {
+            if (basename($path) === 'xSkywars.phar') {
+                fwrite(STDERR, "ERROR: Missing SkyWars match entity: $member\n");
+                exit(1);
+            }
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = "class $entityClass extends $baseClass";
+        $after = $before . ' implements \pocketmine\entity\NeverSavedWithChunkEntity';
+        // Self-heal PHARs already patched by earlier startup attempts.
+        while (str_contains($content, $after . ' implements \pocketmine\entity\NeverSavedWithChunkEntity')) {
+            $content = str_replace($after . ' implements \pocketmine\entity\NeverSavedWithChunkEntity', $after, $content);
+        }
+        if (substr_count($content, $after) !== 1) {
+            if (substr_count($content, $before) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected SkyWars entity declaration: $member\n");
+                exit(1);
+            }
+            $content = str_replace($before, $after, $content);
+        }
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+            echo "[ReNether] Patched nonpersistent SkyWars entity: $entityClass\n";
+        }
+    }
+
     // Soccer ball is a match-only Human entity. Like BedWars' custom entities,
     // it calls setCanSaveWithChunk(false) only after the parent constructor.
     // Axolotl requires a non-persistent marker during construction instead.
