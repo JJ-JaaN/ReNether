@@ -6,7 +6,7 @@ ASSETS="$(realpath "$1")"
 DATA="$(realpath -m "$2")"
 FORCE="${NG_REMIGRATE_ASSETS:-0}"
 [[ "$FORCE" == 0 || "$FORCE" == 1 ]] || { echo "NG_REMIGRATE_ASSETS must be 0 or 1" >&2; exit 2; }
-die(){ echo "[new-ng] ERROR: $*" >&2; exit 1; }
+die(){ echo "[ReNether] ERROR: $*" >&2; exit 1; }
 [[ -d "$ASSETS/Bedwars/arenas" && -f "$ASSETS/Bedwars/arenas.yml" &&
    -d "$ASSETS/Bedwars/WaitingLobby" && -f "$ASSETS/Lobby/worlds/Hub/level.dat" &&
    -d "$ASSETS/Lobby/worlds/Hub/db" && -f "$ASSETS/Lobby/worlds/ArcadeLobby/level.dat" &&
@@ -54,7 +54,7 @@ if [[ "$FORCE" == 1 ]]; then
 
   changed=()
   restore(){
-    echo "[new-ng] Rolling back incomplete asset migration" >&2
+    echo "[ReNether] Rolling back incomplete asset migration" >&2
     for ((j=${#changed[@]}-1; j>=0; j--)); do
       rel="${targets[${changed[$j]}]}"
       rm -rf -- "$DATA/$rel"
@@ -78,10 +78,10 @@ if [[ "$FORCE" == 1 ]]; then
       restore
       die "Failed to restore official asset $rel"
     fi
-    echo "[new-ng] Remigrated: $rel"
+    echo "[ReNether] Remigrated: $rel"
   done
   copied_official_hub=1
-  echo "[new-ng] Previous assets backed up: $backup"
+  echo "[ReNether] Previous assets backed up: $backup"
 else
   for i in "${!sources[@]}"; do
     rel="${targets[$i]}"
@@ -104,7 +104,7 @@ fi
 
 # On the BedWars/Hub instance, Soccer is a second gamemode with its own
 # plugin_data. Never replace the Hub with Soccer's original waiting template.
-if [[ "${NG_ENABLE_SOCCER:-1}" == 1 ]]; then
+if [[ "${NG_ENABLE_SOCCER:-0}" == 1 ]]; then
   [[ -f "$ASSETS/Soccer/arenas/SC-1/level.dat" &&
      -f "$ASSETS/Soccer/WaitingLobby/level.dat" ]] ||
     die "Missing original Soccer SC-1 or WaitingLobby; sparse checkout must include Soccer."
@@ -112,11 +112,11 @@ if [[ "${NG_ENABLE_SOCCER:-1}" == 1 ]]; then
     src="$ASSETS/Soccer/$pair"
     dst="$DATA/plugin_data/xSoccer/$pair"
     if [[ -e "$dst" || -L "$dst" ]]; then
-      echo "[new-ng] Preserving existing Soccer asset: $dst"
+      echo "[ReNether] Preserving existing Soccer asset: $dst"
     else
       mkdir -p "$(dirname "$dst")"
       cp -a -- "$src" "$dst"
-      echo "[new-ng] Copied original Soccer asset: $dst"
+      echo "[ReNether] Copied original Soccer asset: $dst"
     fi
   done
   soccer_credit="$DATA/plugin_data/xSoccer/NETHERGAMES_ASSETS_CREDIT.txt"
@@ -139,4 +139,4 @@ https://creativecommons.org/licenses/by/4.0/
 Original main Hub: worlds/Hub; BedWars waiting template: xBedwars/WaitingLobby.
 Independent project; not endorsed by NetherGames.
 TXT
-echo "[new-ng] Original lobby worlds and BedWars assets ready."
+echo "[ReNether] Original lobby worlds and BedWars assets ready."
