@@ -1317,8 +1317,20 @@ PHP;
         $content = $updated[$member] ?? $phar[$member]->getContent();
         $before = 'class SWPlayer extends Human';
         $after = 'class SWPlayer extends Human implements \pocketmine\entity\NeverSavedWithChunkEntity';
-        if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[ReNether] Already compatible: SkyWars corpse non-saved entity\n";
+        // Earlier ReNether patch incorrectly re-applied this declaration on
+        // every startup because $before is a prefix of $after. Normalize
+        // already-corrupted PHARs before checking for the marker.
+        $duplicate = $after . ' implements \pocketmine\entity\NeverSavedWithChunkEntity';
+        while (str_contains($content, $duplicate)) {
+            $content = str_replace($duplicate, $after, $content);
+        }
+        if (substr_count($content, $after) === 1) {
+            if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+                $updated[$member] = $content;
+                echo "[ReNether] Repaired duplicate SkyWars corpse implements\n";
+            } else {
+                echo "[ReNether] Already compatible: SkyWars corpse non-saved entity\n";
+            }
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
