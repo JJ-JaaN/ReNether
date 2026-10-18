@@ -12,7 +12,7 @@ Projekt **ReNether** je neovisni projekt koji koristi kompatibilnosne prilagodbe
 
 Pune licence ostaju pohranjene u preuzetim izvornim repozitorijima. Sačuvati povijest i izvorne copyright komentare. Creative Commons atribucija za originalne Lobby i BedWars world datoteke čuva se i u `plugin_data/xBedwars/NETHERGAMES_ASSETS_CREDIT.txt`. Pri eksplicitnoj remigraciji originali se kopiraju uz backup prethodnih verzija pod `.runtime/asset-backups/`.
 
-Važno: privatni GitHub repozitorij **ne uklanja** AGPL obveze kada korisnici koriste javno dostupnu modificiranu AGPL aplikaciju preko mreže. Ne objavljivati pakete s nejasnim dodatnim proprietary pravima bez provjere dozvola. Nije dano dopuštenje koristiti tuđe zaštitne znakove za prikaz službene povezanosti.
+Važno: [ReNetherov javni GitHub repozitorij](https://github.com/JJ-JaaN/ReNether) pruža pristup objavljenim izmjenama, ali **sam po sebi ne dokazuje** da je dostupan cijeli odgovarajući izvorni kod (Corresponding Source) konkretne verzije servera, kako bi primjenjiva AGPL obveza mogla zahtijevati. Ne objavljivati pakete s nejasnim dodatnim proprietary pravima bez provjere dozvola. Nije dano dopuštenje koristiti tuđe zaštitne znakove za prikaz službene povezanosti.
 ## Status usklađivanja
 
 Za operativne obveze i neriješena prava vidi [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md). Ova datoteka služi kao atribucija, **ne** predstavlja dokaz da imamo dopuštenje za sve oblike distribucije ili javnog pokretanja. Ne uklanjati izvorna vlasnička zaglavlja niti copyright obavijesti.
