@@ -748,6 +748,32 @@ PHP;
                 exit(1);
             }
         }
+        // ReNether SkyWars WaitingLobby's actual center was measured in-game
+        // at X=128, Y=120, Z=128. Keep its world assignment below intact.
+        $swOldLocation = <<<'PHP'
+            $location = new Location(0.5, 65, 0.5, $location->getWorld(), 0, 0);
+        }
+
+        if ($this->world !== null) {
+PHP;
+        $swNewLocation = <<<'PHP'
+            $location = new Location(0.5, 65, 0.5, $location->getWorld(), 0, 0);
+        }
+        if ($this->getPlugin()->getMinigameTag() === \NetherGames\NGEssentials\ServerManager::SW &&
+            $this->isWaitingLobby()) {
+            $location = new Location(128.5, 121, 128.5, $location->getWorld(), 0, 0);
+        }
+
+        if ($this->world !== null) {
+PHP;
+        if (str_contains($content, $swNewLocation)) {
+            echo "[ReNether] Already compatible: measured SkyWars waiting spawn\n";
+        } elseif (substr_count($content, $swOldLocation) === 1) {
+            $content = str_replace($swOldLocation, $swNewLocation, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected SkyWars WaitingLobby spawn insertion point.\n");
+            exit(1);
+        }
         if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
             $updated[$member] = $content;
             echo "[ReNether] Patched waiting lobby spawn for BW + SW\\n";
