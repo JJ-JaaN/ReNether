@@ -57,7 +57,17 @@ git pull --ff-only
 NG_ENABLE_SOCCER=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-branding.log
 ```
 
-Provjeri da log sadrži `Configured server.properties MOTD: motd=ReNether`, `actual Bedrock query MOTD` ili `Already compatible`, te `ReNetherBranding`. U igri se ploče ažuriraju kad igrač učita njihove chunkove. Za provjeru stvarnog sadržaja `server.properties`:
+Provjeri da log sadrži `Configured server.properties MOTD: motd=ReNether`, `Configured listening port: server-port=19133`, `Verified MOTD/brand in built PHARs` i `Bedrock RakNet advertised name: ReNether`. Ako neki od tih zapisa nedostaje, novi proces možda nije uspješno pokrenut.
+
+Provjeri **stvarni UDP ping odgovor** lokalno na VPS-u:
+
+```bash
+cd ~/new-ng
+python3 scripts/check_bedrock_motd.py 19132 19133
+sudo ss -lunp | grep -E ':(19132|19133)'
+```
+
+Očekivano: `UDP 19133: ADVERTISED='ReNether'` (može sadržavati Minecraft boje), dok 19132 ne odgovara ili prikazuje drugi server. `NG NG Bedwars` na 19132 znači da se Minecraft vjerojatno spaja na stari port. Ako ga prikazuje 19133, usporedi PID iz `ss` s novo pokrenutim procesom; ne briši `server.lock` ni svjetove. U igri se ploče ažuriraju kad igrač učita njihove chunkove. Za provjeru stvarnog sadržaja `server.properties`:
 
 ```bash
 grep '^motd=' ~/new-ng/.runtime/data/server.properties
