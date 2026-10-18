@@ -1025,6 +1025,43 @@ PHP;
         exit(1);
     }
 
+    // Bedrock server list query overwrites server.properties MOTD with the
+    // original NGEssentials ServerManager::getMotd() every refresh.
+    // Patch the real source of the on-wire Bedrock server name.
+    $member = 'src/NetherGames/NGEssentials/ServerManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = "        return '§k§b.§r §o§e§lN§6G§r§7: §bNG ' . self::getName(\$this->getServerType());";
+        $after = "        return '§6§lReNether§r';";
+        if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
+            echo "[ReNether] Already compatible: " . basename($path) . " / actual Bedrock query MOTD\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected NGEssentials ServerManager::getMotd() value in $member.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials ServerManager missing; cannot set ReNether query MOTD.\n");
+        exit(1);
+    }
+
+    // The original floating title/bossbar also calls NGEssentials::getLogo().
+    $member = 'src/NetherGames/NGEssentials/NGEssentials.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = "return TextFormat::BOLD . TextFormat::YELLOW . 'Nether' . TextFormat::GOLD . 'Games ';";
+        $after = "return TextFormat::BOLD . TextFormat::GOLD . 'ReNether ';";
+        if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
+            echo "[ReNether] Already compatible: " . basename($path) . " / in-game server logo\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected NGEssentials::getLogo() value in $member.\n");
+            exit(1);
+        }
+    }
+
     // ReNether no longer offers Soccer. Remove the NPC from PHARs patched by
     // previous versions, without affecting saved worlds or Hub characters.
     $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
