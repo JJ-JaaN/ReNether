@@ -8,6 +8,8 @@ SOURCES="$ROOT/upstream"
 CACHE="$ROOT/.cache"
 GAME="${NG_GAME:-Bedwars}"
 SOCCER_ENABLED="${NG_ENABLE_SOCCER:-0}"
+SKYWARS_ENABLED="${NG_ENABLE_SKYWARS:-0}"
+[[ "$SKYWARS_ENABLED" == 0 || "$SKYWARS_ENABLED" == 1 ]] || { echo "[ReNether] ERROR: NG_ENABLE_SKYWARS must be 0 or 1" >&2; exit 2; }
 [[ "$SOCCER_ENABLED" == 0 || "$SOCCER_ENABLED" == 1 ]] || { echo '[ReNether] ERROR: NG_ENABLE_SOCCER must be 0 or 1' >&2; exit 2; }
 case "$GAME" in
   Bedwars)
@@ -90,6 +92,9 @@ else
   git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Skywars
 fi
 python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
+if [[ "$GAME" == Bedwars && "$SKYWARS_ENABLED" == 1 ]]; then
+  bash "$ROOT/scripts/migrate_skywars_assets.sh" "$SOURCES/assets" "$DATA"
+fi
 if [[ "$GAME" == Soccer ]]; then
   bash "$ROOT/scripts/migrate_soccer_assets.sh" "$SOURCES/assets" "$DATA"
 elif [[ "$GAME" == Skywars ]]; then
@@ -232,6 +237,34 @@ if [[ "$GAME" == Bedwars && "$SOCCER_ENABLED" == 1 ]]; then
   phar_has_vendor "$SOCCER_PHAR" || die "Soccer PHAR is missing Composer autoload. Set NG_ENABLE_SOCCER=0 to start BedWars without Soccer."
 fi
 
+# Optional same-process SkyWars: shares BedWars network port and Hub.
+# Each game maintains its own plugin_data and arena directories.
+if [[ "$GAME" == Bedwars ]]; then
+  if [[ "$SKYWARS_ENABLED" == 0 && -f "$DATA/plugins/xSkywars.phar" ]]; then
+    mv "$DATA/plugins/xSkywars.phar" "$DATA/plugins/xSkywars.phar.disabled"
+    log "SkyWars disabled (PHAR and existing world data preserved)"
+  fi
+  if [[ "$SKYWARS_ENABLED" == 1 ]]; then
+    SKYWARS_PHAR="$DATA/plugins/xSkywars.phar"
+    if [[ ! -f "$SKYWARS_PHAR" && -f "$DATA/plugins/xSkywars.phar.disabled" ]]; then
+      mv "$DATA/plugins/xSkywars.phar.disabled" "$SKYWARS_PHAR"
+    fi
+    if ! phar_has_vendor "$SKYWARS_PHAR"; then
+      log "Building optional xSkywars for the main ReNether process"
+      (
+        cd "$SOURCES/plugins/Skywars"
+        if [[ -f composer-build.json ]]; then manifest=composer-build.json; else manifest=composer.json; fi
+        "$PHP" "$SOURCES/plugins/scripts/merge-composer.php" "$manifest" "$SOURCES/plugins/shared/repositories.json" composer.merged.json
+        COMPOSER_ROOT_VERSION=dev-stable COMPOSER=composer.merged.json COMPOSER_MIRROR_PATH_REPOS=1 php_composer install --prefer-source --no-dev --no-interaction --no-progress
+        [[ -f vendor/autoload.php ]] || die "Composer did not create Skywars/vendor/autoload.php"
+        "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- --make . --relative . --out "$SKYWARS_PHAR"
+        "$PHP" -dphar.readonly=0 "$ROOT/scripts/ensure_phar_vendor.php" "$PWD" "$SKYWARS_PHAR"
+      )
+    fi
+    phar_has_vendor "$SKYWARS_PHAR" || die "xSkywars PHAR missing Composer autoload"
+  fi
+fi
+
 # Refresh compatibility files in already-built PHARs without rebuilding Composer plugins.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/sync_core_phar.php" \
   "$SOURCES/axolotl" "$DATA/PocketMine-MP.phar"
@@ -240,7 +273,7 @@ fi
 # The patched methods do not use the former TypeConverter argument.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
   "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
-  ${SOCCER_PHAR:+"$SOCCER_PHAR"}
+  ${SOCCER_PHAR:+"$SOCCER_PHAR"} ${SKYWARS_PHAR:+"$SKYWARS_PHAR"}
 
 # Build the small first-party sign rebranding plugin on every main-server
 # boot, so already existing worlds are updated as chunks are loaded.
