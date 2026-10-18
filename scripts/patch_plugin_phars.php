@@ -1278,6 +1278,27 @@ PHP;
         }
     }
 
+    // SkyWars corpse is a short-lived Human spawned on player death.
+    // Axolotl 5.49.1 requires NeverSavedWithChunkEntity at construction,
+    // before SWPlayer can call setCanSaveWithChunk(false).
+    $member = 'src/skywars/entities/SWPlayer.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'class SWPlayer extends Human';
+        $after = 'class SWPlayer extends Human implements \pocketmine\entity\NeverSavedWithChunkEntity';
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[ReNether] Already compatible: SkyWars corpse non-saved entity\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected SkyWars SWPlayer class declaration.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xSkywars.phar') {
+        fwrite(STDERR, "ERROR: SkyWars corpse entity missing from xSkywars PHAR.\n");
+        exit(1);
+    }
+
     // Soccer ball is a match-only Human entity. Like BedWars' custom entities,
     // it calls setCanSaveWithChunk(false) only after the parent constructor.
     // Axolotl requires a non-persistent marker during construction instead.
