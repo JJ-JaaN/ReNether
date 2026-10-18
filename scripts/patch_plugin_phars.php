@@ -1133,6 +1133,31 @@ PHP;
         exit(1);
     }
 
+    // When SW shares a process with BW, NGEssentials still reports the BW
+    // serverType. PlayerManager normally initializes Store only for SW/lobby,
+    // causing a fatal access to its uninitialized typed property at match start.
+    $member = 'src/NetherGames/NGEssentials/player/PlayerManager.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+if (($enableLobbyHandling = $serverManager->enableLobbyHandling()) || in_array($plugin->getServerManager()->getServerType(), [ServerManager::SW, ServerManager::SETUP], true)) {
+PHP;
+        $after = <<<'PHP'
+if (($enableLobbyHandling = $serverManager->enableLobbyHandling()) || in_array($plugin->getServerManager()->getServerType(), [ServerManager::SW, ServerManager::SETUP], true) || (getenv('NG_ENABLE_SKYWARS') === '1' && $serverManager->getServerType() === ServerManager::BW)) {
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[ReNether] Already compatible: shared BW+SW store initialized\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected PlayerManager Store initialization guard.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing PlayerManager required for SkyWars Store.\n");
+        exit(1);
+    }
+
     // SkyWars was originally created as a visible but deliberately offline
     // Hub NPC. Wire its existing tap handler to xSkywars now that the game
     // can load alongside BedWars. Works on already-patched PHARs too.
