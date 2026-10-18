@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Experimental NetherGames API compatibility patch for Axolotl-PM 5.49.1.
+"""ReNether compatibility adapter for original NetherGames APIs on Axolotl-PM 5.49.1.
 
 NOT full multi-protocol support and NOT a verified NetherGames BedWars port.
 Derived compatibility APIs retain upstream LGPL notices and attribution.
