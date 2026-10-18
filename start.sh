@@ -210,6 +210,23 @@ fi
   "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
   ${SOCCER_PHAR:+"$SOCCER_PHAR"}
 
+# Build the small first-party sign rebranding plugin on every main-server
+# boot, so already existing worlds are updated as chunks are loaded.
+if [[ "$GAME" == Bedwars ]]; then
+  BRAND_SOURCE="$ROOT/plugins/ReNetherBranding"
+  BRAND_PHAR="$DATA/plugins/ReNetherBranding.phar"
+  [[ -f "$BRAND_SOURCE/plugin.yml" &&
+     -f "$BRAND_SOURCE/src/renether/branding/Main.php" ]] ||
+    die "ReNetherBranding source missing. Pull the renamed JJ-JaaN/ReNether repository."
+  log "Building ReNetherBranding (persistent in-world sign updates)"
+  (
+    cd "$BRAND_SOURCE"
+    "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- \
+      --make . --relative . --out "$BRAND_PHAR"
+  )
+  [[ -s "$BRAND_PHAR" ]] || die "ReNetherBranding.phar build failed"
+fi
+
 if [[ $EUID -eq 0 ]]; then
   systemctl start mariadb
   DATABASE=(mariadb -uroot)
@@ -253,6 +270,10 @@ if [[ ! -f "$DATA/server.properties" ]]; then
   cp "$SOURCES/plugins/docker/server.properties" "$DATA/server.properties"
   sed -i -e "s/^server-port=.*/server-port=$PORT/" -e 's/^xbox-auth=.*/xbox-auth=true/' -e "s/^motd=.*/motd=ReNether/" "$DATA/server.properties"
 fi
+# The Bedrock server list name is also supplied by NGEssentials' query
+# listener; that path is patched to ReNether inside NGEssentials.phar.
+log "Configured server.properties MOTD: $(grep '^motd=' "$DATA/server.properties" | tail -n1)"
+log "Code revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 # A requested full asset remigration explicitly selects the old Network Hub
 # as the main world, without touching other user server.properties settings.
 if [[ "$GAME" == Bedwars && "${NG_REMIGRATE_ASSETS:-0}" == 1 ]]; then
