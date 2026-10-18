@@ -1309,6 +1309,28 @@ PHP;
         }
     }
 
+    // Upstream libminigames RandomRoll mistakenly calls mt_rand(min, min).
+    // This makes RandomRoll(0, 1) always generate zero loot entries, disabling
+    // SkyWars Utility drops such as Ender Pearls in every chest.
+    $member = 'vendor/nethergamesmc/libminigames/loot/rolls/RandomRoll.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = 'return mt_rand($this->minimum, $this->minimum);';
+        $after = 'return mt_rand($this->minimum, $this->maximum);';
+        if (str_contains($content, $after)) {
+            echo "[ReNether] Already compatible: loot random-roll upper bound\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+            echo "[ReNether] Restored randomized loot rolls (including SkyWars pearls)\n";
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected libminigames RandomRoll implementation.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing libminigames RandomRoll in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
     // SkyWars corpse is a short-lived Human spawned on player death.
     // Axolotl 5.49.1 requires NeverSavedWithChunkEntity at construction,
     // before SWPlayer can call setCanSaveWithChunk(false).
