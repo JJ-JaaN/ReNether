@@ -1075,6 +1075,38 @@ PHP;
         }
     }
 
+    // NGEssentials deliberately unregisters vanilla commands, including
+    // op/deop/help/plugins. Retain those essential server administration tools
+    // so console operators can debug games and grant OP.
+    $member = 'src/NetherGames/NGEssentials/commands/BaseCommand.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        foreach (self::UNREGISTERED_COMMANDS as $command) {
+            $commandMap->unregister($commandMap->getCommand($command));
+        }
+PHP;
+        $after = <<<'PHP'
+        foreach (self::UNREGISTERED_COMMANDS as $command) {
+            if (in_array($command, ['op', 'deop', 'help', 'plugins'], true)) {
+                continue; // ReNether: preserve vanilla administration commands.
+            }
+            $commandMap->unregister($commandMap->getCommand($command));
+        }
+PHP;
+        if (str_contains($content, $after) && !str_contains($content, $before)) {
+            echo "[ReNether] Already compatible: admin console commands\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected NGEssentials BaseCommand::registerCommands implementation.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: NGEssentials BaseCommand missing; cannot restore console commands.\n");
+        exit(1);
+    }
+
     // SkyWars was originally created as a visible but deliberately offline
     // Hub NPC. Wire its existing tap handler to xSkywars now that the game
     // can load alongside BedWars. Works on already-patched PHARs too.
