@@ -22,24 +22,23 @@ ili projektom Axolotl-PM na način koji bi podrazumijevao njihovo odobrenje.
 - Izrada neslužbenog BedWars Huba, kompatibilnosnih zakrpa, javnog prikaza naziva **ReNether** te zamjena povijesnih natpisa na pločama putem `ReNetherBranding`.
 - Originalne mape se preuzimaju iz izvora te se kod lokalnih promjena čuvaju backupi. Atribucija uz podatke nalazi se u `plugin_data/xBedwars/NETHERGAMES_ASSETS_CREDIT.txt`.
 
-## Pristup odgovarajućem izvornom kodu
+## Javni repozitorij i odgovarajući izvorni kod
 
-Ako se koristi modificirani program koji stvarno potpada pod AGPL-3.0,
-**korisnicima koji ga koriste preko mreže** može biti potrebno ponuditi
-Corresponding Source aktualne, pokrenute verzije, bez naknade, kroz
-prikladan javno dostupan mehanizam. Sama privatna GitHub adresa nije dostupna
-igračima i nije dovoljan pristup.
+ReNetherov GitHub repozitorij je **javan**:
+https://github.com/JJ-JaaN/ReNether
+
+Javni repozitorij omogućuje pristup ovdje objavljenim skriptama i izmjenama, ali to samo po sebi ne dokazuje da sadrži **cijeli Corresponding Source** točne verzije koja se izvršava na poslužitelju. Ako je pokrenuti softver obuhvaćen AGPL-3.0, primjenjiva obveza iz odjeljka 13 uključuje odgovarajuću ponudu izvora korisnicima koji s programom komuniciraju preko mreže. Potrebno je provjeriti uključuje li ponuda i sve relevantne ovisnosti, izmjene, informacije za izgradnju i potrebne licence. Pristup iz igre također još treba urediti.
 
 Za pripremu izvora treba sačuvati:
 
 1. Točne revizije svih korištenih repozitorija, uključujući izvore Composer ovisnosti.
 2. ReNether skripte za dohvat, izgradnju i zakrpe, zajedno s promijenjenim izvornim datotekama ili reproducibilnim postupkom njihove izrade.
 3. Obavijesti o autorima, punu primjenjivu licencu i upute za izgradnju i instalaciju.
-4. Put za pristup izvoru iz samog servisa, primjerice /licenses i stvarno dostupan URL, **nakon** što su prava na redistribuciju razjašnjena.
+4. Vidljivu ponudu pristupa izvoru u samoj aplikaciji (primjerice `/licenses`) koja vodi na stvarno dostupan odgovarajući izvorni kod i licence; ne predstavljati nedopušten materijal kao vlastiti.
 
 **Ne uključivati** privatne tokene, lozinke, bazu igrača, `.runtime/`, privatne konfiguracije i druge osobne podatke.
 
-## Blokatori prije javnog objavljivanja
+## Otvorene obveze i blokatori javnog korištenja
 
 - [ ] Pribaviti pisano pojašnjenje od nositelja prava o odnosu između
   AGPL-3.0 licence u korijenu `NetherGamesMC/plugins` i vlasničkih
@@ -55,6 +54,4 @@ Za pripremu izvora treba sačuvati:
 - [ ] Ne koristiti izvorni žig NetherGames kao da je ReNether službeni nastavak.
 
 Ovaj dokument je inventar i plan usklađivanja, **ne potvrda pravne usklađenosti
-i ne licenca za tuđe radove**. Dok se spor oko originalnih pluginova ne
-razjasni, nemoj tvrditi da je javna distribucija ili javni poslužitelj
-neosporno odobren.
+i ne licenca za tuđe radove**. Iako je ovaj repozitorij javan, spor oko originalnih pluginova ostaje neriješen. Nemoj tvrditi da su javna distribucija ili rad javnog poslužitelja neosporno odobreni.
