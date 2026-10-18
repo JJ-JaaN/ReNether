@@ -7,6 +7,7 @@ use pocketmine\block\BaseSign;
 use pocketmine\block\utils\SignText;
 use pocketmine\event\Listener;
 use pocketmine\event\world\ChunkLoadEvent;
+use pocketmine\event\server\QueryRegenerateEvent;
 use pocketmine\plugin\PluginBase;
 use pocketmine\world\format\Chunk;
 use pocketmine\world\World;
@@ -21,6 +22,10 @@ final class Main extends PluginBase implements Listener{
 
     protected function onEnable(): void{
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        // This is the string actually sent in RakNet unconnected ping replies.
+        // NGEssentials also calls Network::setName(), so run after it.
+        $this->getServer()->getNetwork()->setName("ReNether");
+        $this->getLogger()->info("Bedrock RakNet advertised name: " . $this->getServer()->getNetwork()->getName());
 
         $scanned = 0;
         foreach($this->getServer()->getWorldManager()->getWorlds() as $world){
@@ -29,6 +34,13 @@ final class Main extends PluginBase implements Listener{
             }
         }
         $this->getLogger()->info("ReNether world branding active: changed $scanned already-loaded signs. Future chunk signs will be checked automatically.");
+    }
+
+    /**
+     * @priority MONITOR
+     */
+    public function onQueryRegenerate(QueryRegenerateEvent $event): void{
+        $event->getQueryInfo()->setServerName("ReNether");
     }
 
     public function onChunkLoad(ChunkLoadEvent $event): void{
