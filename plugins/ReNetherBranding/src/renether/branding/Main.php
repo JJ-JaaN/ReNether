@@ -79,9 +79,9 @@ final class Main extends PluginBase implements Listener{
         // Only replace legacy branding, not the word "Nether" in ordinary text.
         return preg_replace(
             [
-                '/Nether[ ]*Games/iu',
+                '/Nether(?:§[0-9a-fk-or])*[ ]*Games/iu',
                 '/(?<![\p{L}\p{N}])ngmc\.co(?![\p{L}\p{N}])/iu',
-                '/(?<![\p{L}\p{N}])NG(?![\p{L}\p{N}])/u'
+                '/(?<![\p{L}\p{N}])N(?:§[0-9a-fk-or])*G(?![\p{L}\p{N}])/iu'
             ],
             ['ReNether', 'ReNether', 'ReNether'],
             $line
