@@ -16,6 +16,12 @@ case "$GAME" in
     SERVER_TYPE="BW"
     DEFAULT_PORT=19133
     ;;
+  Skywars)
+    DATA="$STATE/skywars/data"
+    MINIGAME_PHAR="xSkywars.phar"
+    SERVER_TYPE="SW"
+    DEFAULT_PORT=19134
+    ;;
   Soccer)
     [[ "$SOCCER_ENABLED" == 1 ]] || { echo "[ReNether] Soccer is disabled. Explicit NG_ENABLE_SOCCER=1 required to run it." >&2; exit 2; }
     DATA="$STATE/soccer/data"
@@ -24,7 +30,7 @@ case "$GAME" in
     DEFAULT_PORT=19134
     ;;
   *)
-    echo "[ReNether] ERROR: Unsupported NG_GAME=$GAME (use Bedwars, or opt into Soccer)" >&2
+    echo "[ReNether] ERROR: Unsupported NG_GAME=$GAME (use Bedwars, Skywars, or opt into Soccer)" >&2
     exit 2
     ;;
 esac
@@ -79,13 +85,15 @@ fi
 # Existing installs originally checked out only Bedwars. Add Lobby even on
 # previously cloned assets; keep both the Network Hub and BedWars waiting area.
 if [[ "$SOCCER_ENABLED" == 1 ]]; then
-  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Soccer
+  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Soccer Skywars
 else
-  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby
+  git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Skywars
 fi
 python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
 if [[ "$GAME" == Soccer ]]; then
   bash "$ROOT/scripts/migrate_soccer_assets.sh" "$SOURCES/assets" "$DATA"
+elif [[ "$GAME" == Skywars ]]; then
+  bash "$ROOT/scripts/migrate_skywars_assets.sh" "$SOURCES/assets" "$DATA"
 else
   bash "$ROOT/scripts/migrate_assets.sh" "$SOURCES/assets" "$DATA"
 fi
@@ -131,7 +139,7 @@ phar_has_vendor(){
 # Reuse the verified compatibility-built core and Essentials from the BedWars
 # profile when starting a separate Soccer instance for the first time.
 # Never modify or write BedWars' existing runtime files here.
-if [[ "$GAME" == Soccer && "${NG_REBUILD:-0}" != 1 ]]; then
+if [[ ( "$GAME" == Soccer || "$GAME" == Skywars ) && "${NG_REBUILD:-0}" != 1 ]]; then
   if [[ ! -s "$DATA/PocketMine-MP.phar" && -s "$STATE/data/PocketMine-MP.phar" ]]; then
     cp "$STATE/data/PocketMine-MP.phar" "$DATA/PocketMine-MP.phar"
   fi
@@ -180,6 +188,15 @@ fi
 
 # Even disabled plugins are auto-discovered by PM if the PHAR stays in
 # plugins/. Preserve the file by renaming it, rather than deleting it.
+# Isolated SkyWars must not load plugins copied from other game modes.
+if [[ "$GAME" == Skywars ]]; then
+  for unwanted in xBedwars xSoccer; do
+    if [[ -f "$DATA/plugins/$unwanted.phar" ]]; then
+      mv "$DATA/plugins/$unwanted.phar" "$DATA/plugins/$unwanted.phar.disabled"
+    fi
+  done
+fi
+
 if [[ "$GAME" == Bedwars ]]; then
   if [[ "$SOCCER_ENABLED" == 0 && -f "$DATA/plugins/xSoccer.phar" ]]; then
     mv "$DATA/plugins/xSoccer.phar" "$DATA/plugins/xSoccer.phar.disabled"
