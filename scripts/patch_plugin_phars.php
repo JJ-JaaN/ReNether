@@ -46,7 +46,7 @@ foreach (array_slice($argv, 1) as $path) {
         ++$found;
         $content = $phar[$member]->getContent();
         if (str_contains($content, $newSignature)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / $class\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / $class\n";
             continue;
         }
         if (substr_count($content, $oldSignature) !== 1) {
@@ -63,7 +63,7 @@ foreach (array_slice($argv, 1) as $path) {
         $before = 'BBI::hoe(0.1)';
         $after = 'new BBI(0.1, BlockToolType::HOE)';
         if (str_contains($content, $after)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / BlockBreakInfo hoe()\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / BlockBreakInfo hoe()\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -103,7 +103,7 @@ foreach (array_slice($argv, 1) as $path) {
         if ($newContent !== $content) {
             $updated[$member] = $newContent;
         } else {
-            echo "[new-ng] Already compatible: " . basename($path) . " / $packet\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / $packet\n";
         }
     }
     // NetherGames PocketMine supports multiple protocols and exposes
@@ -124,7 +124,7 @@ foreach (array_slice($argv, 1) as $path) {
             fwrite(STDERR, "ERROR: Protocol validation signature unexpected in $member.\n");
             exit(1);
         } else {
-            echo "[new-ng] Already compatible: " . basename($path) . " / LoginPacket protocol check\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / LoginPacket protocol check\n";
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGEssentials EventListener in PHAR.\n");
@@ -154,7 +154,7 @@ PHP;
         };
 PHP;
         if (str_contains($content, $after)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / player creation promise guard\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / player creation promise guard\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -224,7 +224,7 @@ PHP;
             $registrar->mapModel(Model::create($block, $id)->properties($commonProps->fenceGateProperties));
 PHP;
         if (str_contains($content, $afterMapping) && str_contains($content, $afterImport)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Fence blockstates\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Fence blockstates\n";
         } elseif (substr_count($content, $beforeMapping) === 1 && substr_count($content, $beforeImport) === 1) {
             $content = str_replace($beforeImport, $afterImport, $content);
             $content = str_replace($beforeMapping, $afterMapping, $content);
@@ -256,7 +256,7 @@ $emptyChunk = ChunkSerializer::serializeFullChunk(
                 $session->getTypeConverter()->getBlockTranslator(),
 PHP;
         if (str_contains($content, $after)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / ChunkSerializer translator\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / ChunkSerializer translator\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -285,7 +285,7 @@ PHP;
         return $skinData;
 PHP;
         if (str_contains($content, $after) && !str_contains($content, '->setVerified(')) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / SkinData trusted flag\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / SkinData trusted flag\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -325,7 +325,7 @@ PHP;
                     ));
 PHP;
         if (str_contains($content, $after)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / LevelChunkPacket arguments\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / LevelChunkPacket arguments\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -369,7 +369,7 @@ PHP;
             $content = str_replace($beforeClosing, $afterClosing, $content);
             $updated[$member] = $content;
         } elseif (str_contains($content, $after) && str_contains($content, $afterClosing)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / NPC abilities " . basename($member) . "\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / NPC abilities " . basename($member) . "\n";
         } else {
             fwrite(STDERR, "ERROR: Missing expected NPC abilities block in $member.\n");
             exit(1);
@@ -432,7 +432,7 @@ PHP;
         if ($newContent !== $content) {
             $updated[$member] = $newContent;
         } else {
-            echo "[new-ng] Already compatible: " . basename($path) . " / PlayerListPacket " . basename($member) . "\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / PlayerListPacket " . basename($member) . "\n";
         }
     }
 
@@ -452,7 +452,7 @@ PHP;
                 fwrite(STDERR, "ERROR: Incomplete Scoreboard API patch in $member.\n");
                 exit(1);
             }
-            echo "[new-ng] Already compatible: " . basename($path) . " / Scoreboard actions\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Scoreboard actions\n";
         } else {
             $replacements = [
                 'use pocketmine\network\mcpe\protocol\types\ScorePacketEntry;' =>
@@ -521,7 +521,7 @@ PHP;
         ));
 PHP;
         if (str_contains($content, $after)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / PlaySoundPacket arguments\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / PlaySoundPacket arguments\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -553,7 +553,7 @@ PHP;
             }
             $updated[$member] = $patched;
         } elseif ($count === 0 && substr_count($content, '$protocolId >= 594') === 2) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / InvMenu historical protocol threshold\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / InvMenu historical protocol threshold\n";
         } else {
             fwrite(STDERR, "ERROR: Unexpected InvMenu historical protocol constant count in $member: $count.\n");
             exit(1);
@@ -574,7 +574,7 @@ PHP;
         $before = '$player->getWorld()->createBlockUpdatePackets($network->getTypeConverter(), [$this->position])';
         $after = '$player->getWorld()->createBlockUpdatePackets([$this->position])';
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / InvMenu block restoration\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / InvMenu block restoration\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -620,7 +620,7 @@ PHP;
                 fwrite(STDERR, "ERROR: Transient entity does not disable chunk saving: $member.\n");
                 exit(1);
             }
-            echo "[new-ng] Already compatible: " . basename($path) . " / Non-saved entity " . basename($member) . "\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Non-saved entity " . basename($member) . "\n";
         } elseif (substr_count($content, $declaration) === 1 &&
                   str_contains($content, '$this->setCanSaveWithChunk(false);')) {
             $updated[$member] = str_replace($declaration, $markedDeclaration, $content);
@@ -640,7 +640,7 @@ PHP;
         $before = 'SELECT @r_xuid as xuid, @r_gameKey as gameKey, @r_current as current, @r_best as best, @r_bestChanged as bestChanged;';
         $after = 'SELECT xuid, gameKey, current, best, COALESCE(@r_bestChanged, current = best) AS bestChanged FROM win_streaks WHERE xuid = :xuid AND gameKey = :gameKey;';
         if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Streak SQL result\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Streak SQL result\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -669,7 +669,7 @@ $row = $rows[0];
             $onSelected(Streak::FromSQL($row));
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Streak result validation\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Streak result validation\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -698,7 +698,7 @@ PHP;
             self::MM => new Location(0.5, 65, 0.5, $defaultWorld, 0, 0),
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / original Hub spawn\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / original Hub spawn\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -734,7 +734,7 @@ PHP;
         if ($this->world !== null) {
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / separate BW waiting spawn\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / separate BW waiting spawn\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -816,7 +816,7 @@ PHP;
                                 $player->sendMessage('§cArcade lobby world is not loaded.');
                             }
                         } elseif ($action === 'story') {
-                            $player->sendMessage('§e' . $label . '§7: Welcome to the old NetherGames Hub!');
+                            $player->sendMessage('§e' . $label . '§7: Welcome to ReNether!');
                         } else {
                             $player->sendMessage('§e' . $label . '§7 is not installed on this server yet.');
                         }
@@ -836,12 +836,12 @@ PHP;
                     );
                 }
             }
-            $this->getPlugin()->getLogger()->info('new-ng Network Hub: spawned ' . $spawned . ' NPCs');
+            $this->getPlugin()->getLogger()->info('ReNether Network Hub: spawned ' . $spawned . ' NPCs');
         }
 PHP;
         $after = $before . "\n" . $addition;
-        if (str_contains($content, 'new-ng Network Hub: spawned')) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Network Hub NPCs\n";
+        if (str_contains($content, 'new-ng Network Hub: spawned') || str_contains($content, 'ReNether Network Hub: spawned')) {
+            echo "[ReNether] Already compatible: " . basename($path) . " / Network Hub NPCs\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -888,7 +888,7 @@ PHP;
     }
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Hub Soccer gamemode\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Hub Soccer gamemode\n";
         } elseif (substr_count($content, $before) === 1) {
             $content = str_replace($before, $after, $content);
         } else {
@@ -922,7 +922,7 @@ PHP;
 
 PHP;
         if (str_contains($content, 'new-ng: wait inside Soccer')) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Soccer waiting spawn\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Soccer waiting spawn\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $insert . $before, $content);
         } else {
@@ -961,7 +961,7 @@ PHP;
         $ess = $this->getEssentials();
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game join guard\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / multi-game join guard\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -981,7 +981,7 @@ PHP;
         $before = 'parent::__construct(Minigame::getInstance());';
         $after = 'parent::__construct($arena->getPlugin());';
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game event owner\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / multi-game event owner\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -1013,7 +1013,7 @@ PHP;
         parent::__construct($owner);
 PHP;
         if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / multi-game stats owner\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / multi-game stats owner\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -1025,23 +1025,17 @@ PHP;
         exit(1);
     }
 
-    // Add a functional Soccer NPC to the reconstructed main Hub while
-    // retaining the already installed original NPC patch and other NPCs.
+    // ReNether no longer offers Soccer. Remove the NPC from PHARs patched by
+    // previous versions, without affecting saved worlds or Hub characters.
     $member = 'src/NetherGames/NGEssentials/entity/EntityManager.php';
     if (isset($phar[$member])) {
         $content = $updated[$member] ?? $phar[$member]->getContent();
-        if (str_contains($content, 'new-ng Network Hub: spawned')) {
-            $before = "['Arcade', 'ac.png', -16, 41, 13, 'arcade'],";
-            $after = $before . "\n                ['Soccer', 'sc.png', -19, 41, 13, 'soccer'],";
-            if (!str_contains($content, $after)) {
-                if (substr_count($content, $before) !== 1) {
-                    fwrite(STDERR, "ERROR: Cannot insert Soccer NPC into main Hub.\n");
-                    exit(1);
-                }
-                $content = str_replace($before, $after, $content);
-            }
-            $before = "} elseif (\$action === 'arcade') {";
-            $after = <<<'PHP'
+        $content = str_replace(
+            "                ['Soccer', 'sc.png', -19, 41, 13, 'soccer'],\n",
+            '',
+            $content
+        );
+        $soccerAction = <<<'PHP'
 } elseif ($action === 'soccer') {
                             $soccer = $player->getServer()->getPluginManager()->getPlugin('xSoccer');
                             if ($soccer instanceof \soccer\Soccer && $soccer->isEnabled()) {
@@ -1051,18 +1045,46 @@ PHP;
                             }
                         } elseif ($action === 'arcade') {
 PHP;
-            if (!str_contains($content, $after)) {
-                if (substr_count($content, $before) !== 1) {
-                    fwrite(STDERR, "ERROR: Cannot set Soccer NPC join action.\n");
-                    exit(1);
-                }
-                $content = str_replace($before, $after, $content);
-            }
-            if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
-                $updated[$member] = $content;
-            } else {
-                echo "[new-ng] Already compatible: " . basename($path) . " / playable Hub Soccer NPC\n";
-            }
+        $content = str_replace($soccerAction, "} elseif (\$action === 'arcade') {", $content);
+        // Preserve the original Hub detection marker filename: it is on disk.
+        $content = str_replace('new-ng Network Hub: spawned', 'ReNether Network Hub: spawned', $content);
+        $content = str_replace('Welcome to the old NetherGames Hub!', 'Welcome to ReNether!', $content);
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+        }
+    }
+
+    // Visible rebranding only. Do not modify original PHP namespaces,
+    // attribution, backend API URLs, or stored player data identifiers.
+    $branding = [
+        'src/NetherGames/NGEssentials/NGEssentials.php' => [
+            "'§o§l§eN§6G§r§7: '" => "'§6§lReNether§r§7: '",
+        ],
+        'src/NetherGames/NGEssentials/player/PlayerManager.php' => [
+            "CustomIcon::NETHERGAMES . TextFormat::GOLD . 'ngmc.co'" =>
+                "TextFormat::GOLD . 'ReNether'",
+        ],
+        'vendor/nethergamesmc/libminigames/Arena.php' => [
+            "CustomIcon::NETHERGAMES . TextFormat::GOLD . 'ngmc.co'" =>
+                "TextFormat::GOLD . 'ReNether'",
+        ],
+        'src/bedwars/BWTeam.php' => [
+            'CustomIcon::NETHERGAMES . TextFormat::GOLD . "ngmc.co"' =>
+                'TextFormat::GOLD . "ReNether"',
+        ],
+        'src/NetherGames/NGEssentials/EventListener.php' => [
+            '§o§l§eN§6G§r§7: §cLooks like §eNether§6Games §cis full,' =>
+                '§6§lReNether§r§7: §cReNether is full,',
+        ],
+    ];
+    foreach ($branding as $member => $replacements) {
+        if (!isset($phar[$member])) {
+            continue;
+        }
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $branded = str_replace(array_keys($replacements), array_values($replacements), $content);
+        if ($branded !== $content) {
+            $updated[$member] = $branded;
         }
     }
 
@@ -1075,7 +1097,7 @@ PHP;
         $before = 'class SCBall extends Human';
         $after = 'class SCBall extends Human implements \pocketmine\entity\NeverSavedWithChunkEntity';
         if (substr_count($content, $after) === 1) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Non-saved soccer ball\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Non-saved soccer ball\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -1098,7 +1120,7 @@ PHP;
         $before = 'return CustomItemRegistry::ZONES()->setCustomName(TextFormat::RESET . TextFormat::GREEN . TextFormat::BOLD . "Map Selector");';
         $after = 'return VanillaItems::PAPER()->setCustomName(TextFormat::RESET . TextFormat::GREEN . TextFormat::BOLD . "Map Selector");';
         if (substr_count($content, $after) === 1 && !str_contains($content, $before)) {
-            echo "[new-ng] Already compatible: " . basename($path) . " / Vanilla paper Map Selector\n";
+            echo "[ReNether] Already compatible: " . basename($path) . " / Vanilla paper Map Selector\n";
         } elseif (substr_count($content, $before) === 1) {
             $updated[$member] = str_replace($before, $after, $content);
         } else {
@@ -1118,7 +1140,7 @@ PHP;
         $phar->startBuffering();
         foreach ($updated as $member => $content) {
             $phar->addFromString($member, $content);
-            echo "[new-ng] Patched plugin PHAR: " . basename($path) . " / " . basename($member) . "\n";
+            echo "[ReNether] Patched plugin PHAR: " . basename($path) . " / " . basename($member) . "\n";
         }
         $phar->stopBuffering();
     }
