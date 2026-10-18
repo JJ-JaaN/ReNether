@@ -733,13 +733,26 @@ PHP;
 
         if ($this->world !== null) {
 PHP;
-        if (str_contains($content, $after) && !str_contains($content, $before)) {
-            echo "[ReNether] Already compatible: " . basename($path) . " / separate BW waiting spawn\n";
-        } elseif (substr_count($content, $before) === 1) {
-            $updated[$member] = str_replace($before, $after, $content);
+        // SW uses the same separate WaitingLobby template coordinates;
+        // the public Network Hub spawn (-26.5,42,-22.5) is in the void there.
+        $swBefore = '($this->getPlugin()->getMinigameTag() === \\NetherGames\\NGEssentials\\ServerManager::BW)';
+        $swAfter = 'in_array($this->getPlugin()->getMinigameTag(), [\\NetherGames\\NGEssentials\\ServerManager::BW, \\NetherGames\\NGEssentials\\ServerManager::SW], true)';
+        if (str_contains($content, $swBefore)) {
+            $content = str_replace($swBefore, $swAfter, $content);
+        } elseif (!str_contains($content, $swAfter)) {
+            if (substr_count($content, $before) === 1) {
+                $content = str_replace($before, $after, $content);
+                $content = str_replace($swBefore, $swAfter, $content);
+            } else {
+                fwrite(STDERR, "ERROR: Unexpected SkyWars/BedWars waiting lobby spawn pattern in $member.\\n");
+                exit(1);
+            }
+        }
+        if ($content !== ($updated[$member] ?? $phar[$member]->getContent())) {
+            $updated[$member] = $content;
+            echo "[ReNether] Patched waiting lobby spawn for BW + SW\\n";
         } else {
-            fwrite(STDERR, "ERROR: Unexpected BW waiting lobby spawn pattern in $member.\n");
-            exit(1);
+            echo "[ReNether] Already compatible: waiting lobby spawn for BW + SW\\n";
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing libminigames Arena for BW waiting spawn.\n");
