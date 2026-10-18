@@ -90,6 +90,21 @@ else
   bash "$ROOT/scripts/migrate_assets.sh" "$SOURCES/assets" "$DATA"
 fi
 
+# Sign rebranding modifies saved Hub sign tiles. Keep a one-time world backup
+# before the first ReNetherBranding boot. No forced remigration or DB changes.
+if [[ "$GAME" == Bedwars && ! -f "$DATA/.renether-sign-backup-created" ]]; then
+  BACKUP_DIR="$STATE/branding-backups"
+  mkdir -p "$BACKUP_DIR"
+  BACKUP="$(mktemp -d "$BACKUP_DIR/$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")"
+  for world in Hub ArcadeLobby; do
+    if [[ -d "$DATA/worlds/$world" ]]; then
+      cp -a -- "$DATA/worlds/$world" "$BACKUP/$world"
+    fi
+  done
+  printf '%s\n' "$BACKUP" > "$DATA/.renether-sign-backup-created"
+  log "Original Hub worlds backed up before sign rebranding: $BACKUP"
+fi
+
 if [[ ! -f "$COMPOSER_PHAR" ]]; then
   curl -fL --retry 3 -o "$COMPOSER_PHAR" https://getcomposer.org/composer-stable.phar
 fi
