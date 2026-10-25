@@ -195,8 +195,8 @@ PHP;
 PHP;
         $deathNew = <<<'PHP'
                 // A void fall locked in while a bed existed retains one respawn.
-                $respawnProtected = $cause === EntityDamageEvent::CAUSE_VOID
-                    && $arena->consumeVoidRespawn($entity);
+                $wasVoidProtected = $arena->consumeVoidRespawn($entity);
+                $respawnProtected = $cause === EntityDamageEvent::CAUSE_VOID && $wasVoidProtected;
                 $canRespawn = $team->isBedAlive() || $respawnProtected;
 
                 if ($killedBy === null) {
