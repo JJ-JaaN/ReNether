@@ -69,6 +69,203 @@ PHP;
             exit(1);
         }
     }
+    // ReNether: retain one respawn if a player entered an unrecoverable void
+    // fall while the bed was intact. The grant belongs only to that fall.
+    if (basename($path) === 'xBedwars.phar') {
+        $arenaMember = 'src/bedwars/BWArena.php';
+        $listenerMember = 'src/bedwars/BWArenaListener.php';
+        if (!isset($phar[$arenaMember]) || !isset($phar[$listenerMember])) {
+            fwrite(STDERR, "ERROR: Missing BedWars void protection members.\n");
+            exit(1);
+        }
+        $arenaContent = $updated[$arenaMember] ?? $phar[$arenaMember]->getContent();
+        $arenaMarker = '    public function startGame(): void';
+        $arenaAddition = <<<'PHP'
+    /** @var array<int, true> Players whose current void fall began with a bed. */
+    private array $renetherVoidRespawns = [];
+    private ?\pocketmine\scheduler\TaskHandler $renetherVoidTask = null;
+
+    public function consumeVoidRespawn(Player $player): bool
+    {
+        $id = $player->getId();
+        $protected = isset($this->renetherVoidRespawns[$id]);
+        unset($this->renetherVoidRespawns[$id]);
+        return $protected;
+    }
+
+    private function checkVoidRespawns(): void
+    {
+        $world = $this->getWorld();
+        $minY = $world->getMinY();
+        $spawnY = $this->getSpawnY();
+        foreach ($this->getPlayers(false) as $player) {
+            $id = $player->getId();
+            $team = $this->getTeamNull($player);
+            if ($team === null || $player->isClosed() || !$player->isAlive() ||
+                $player->getGamemode() === \pocketmine\player\GameMode::SPECTATOR) {
+                unset($this->renetherVoidRespawns[$id]);
+                continue;
+            }
+            $pos = $player->getPosition();
+            // Grounded or upward-moving players are no longer in the protected fall.
+            if ($player->isOnGround() || $player->getMotion()->y >= -0.08) {
+                unset($this->renetherVoidRespawns[$id]);
+                continue;
+            }
+            // Only commit once the player is well below the island's normal level.
+            // This avoids granting respawns during normal jumps and bridges.
+            if ($pos->y >= $spawnY - 8) {
+                continue;
+            }
+            $x = (int) floor($pos->x);
+            $z = (int) floor($pos->z);
+            $clear = true;
+            for ($y = (int) floor($pos->y) - 1; $y >= $minY; --$y) {
+                if (!$world->isChunkLoaded($x >> 4, $z >> 4)) {
+                    $clear = false;
+                    break;
+                }
+                if ($world->getBlockAt($x, $y, $z)->isSolid()) {
+                    $clear = false;
+                    break;
+                }
+            }
+            if ($clear && $team->isBedAlive()) {
+                $this->renetherVoidRespawns[$id] = true;
+            }
+        }
+    }
+
+PHP;
+        if (!str_contains($arenaContent, 'function consumeVoidRespawn(')) {
+            if (substr_count($arenaContent, $arenaMarker) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars startGame declaration.\n");
+                exit(1);
+            }
+            $arenaContent = str_replace($arenaMarker, $arenaAddition . $arenaMarker, $arenaContent);
+        }
+        $startOld = <<<'PHP'
+    public function startGame(): void
+    {
+        $arenaConfig = $this->getPlugin()->getArenaConfig();
+PHP;
+        $startNew = <<<'PHP'
+    public function startGame(): void
+    {
+        $this->renetherVoidTask = $this->getPlugin()->getScheduler()->scheduleRepeatingTask(
+            new \pocketmine\scheduler\ClosureTask(function (): void {
+                if ($this->isRunning()) {
+                    $this->checkVoidRespawns();
+                }
+            }), 2
+        );
+        $arenaConfig = $this->getPlugin()->getArenaConfig();
+PHP;
+        if (!str_contains($arenaContent, '$this->renetherVoidTask = $this->getPlugin()->getScheduler()')) {
+            if (substr_count($arenaContent, $startOld) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars startGame body.\n");
+                exit(1);
+            }
+            $arenaContent = str_replace($startOld, $startNew, $arenaContent);
+        }
+        $finishOld = <<<'PHP'
+    public function finishGame(): void
+    {
+PHP;
+        $finishNew = <<<'PHP'
+    public function finishGame(): void
+    {
+        $this->renetherVoidTask?->cancel();
+        $this->renetherVoidTask = null;
+        $this->renetherVoidRespawns = [];
+PHP;
+        if (!str_contains($arenaContent, '$this->renetherVoidTask?->cancel();')) {
+            if (substr_count($arenaContent, $finishOld) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars finishGame body.\n");
+                exit(1);
+            }
+            $arenaContent = str_replace($finishOld, $finishNew, $arenaContent);
+        }
+        $updated[$arenaMember] = $arenaContent;
+
+        $listenerContent = $updated[$listenerMember] ?? $phar[$listenerMember]->getContent();
+        $deathOld = <<<'PHP'
+                if ($killedBy === null) {
+                    $arena->broadcastMessage(str_replace('{PLAYER}', $team->getPlayerName($entity), $plugin->getRandomKillMessage($event->getCause())) . ($team->isBedAlive() ? '' : ' §l§bFINAL KILL!'), true);
+PHP;
+        $deathNew = <<<'PHP'
+                // A void fall locked in while a bed existed retains one respawn.
+                $respawnProtected = $cause === EntityDamageEvent::CAUSE_VOID
+                    && $arena->consumeVoidRespawn($entity);
+                $canRespawn = $team->isBedAlive() || $respawnProtected;
+
+                if ($killedBy === null) {
+                    $arena->broadcastMessage(str_replace('{PLAYER}', $team->getPlayerName($entity), $plugin->getRandomKillMessage($event->getCause())) . ($canRespawn ? '' : ' §l§bFINAL KILL!'), true);
+PHP;
+        if (!str_contains($listenerContent, '$respawnProtected = $cause === EntityDamageEvent::CAUSE_VOID')) {
+            if (substr_count($listenerContent, $deathOld) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars death announcement.\n");
+                exit(1);
+            }
+            $listenerContent = str_replace($deathOld, $deathNew, $listenerContent);
+            // Apply to the kill attribution branch only, not other event logic.
+            $oldKill = <<<'PHP'
+                    if ($team->isBedAlive()) {
+                        $arena->addKill($killedBy, $entity);
+PHP;
+            $newKill = <<<'PHP'
+                    if ($canRespawn) {
+                        $arena->addKill($killedBy, $entity);
+PHP;
+            if (substr_count($listenerContent, $oldKill) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars kill attribution.\n");
+                exit(1);
+            }
+            $listenerContent = str_replace($oldKill, $newKill, $listenerContent);
+            $oldCall = <<<'PHP'
+                $this->onPlayerDeath($entity, $team, in_array($cause, [
+PHP;
+            $newCall = <<<'PHP'
+                $this->onPlayerDeath($entity, $team, in_array($cause, [
+PHP;
+            // Pass the new decision as a fourth argument, after the existing cause list.
+            $callEnd = <<<'PHP'
+                    EntityDamageEvent::CAUSE_FALL
+                ], true));
+PHP;
+            $callEndNew = <<<'PHP'
+                    EntityDamageEvent::CAUSE_FALL
+                ], true), $canRespawn);
+PHP;
+            if (substr_count($listenerContent, $callEnd) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars death call.\n");
+                exit(1);
+            }
+            $listenerContent = str_replace($callEnd, $callEndNew, $listenerContent);
+            $signature = 'public function onPlayerDeath(Player $player, BWTeam $team, bool $spawnCorps = true): void';
+            $signatureNew = 'public function onPlayerDeath(Player $player, BWTeam $team, bool $spawnCorps = true, ?bool $canRespawn = null): void';
+            if (substr_count($listenerContent, $signature) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars death method.\n");
+                exit(1);
+            }
+            $listenerContent = str_replace($signature, $signatureNew, $listenerContent);
+            $respawnOld = <<<'PHP'
+        if ($team->isBedAlive()) {
+            $playerInventoryContents = $gameSettings->hasKeepInventory() ? $player->getInventory()->getContents() : null;
+PHP;
+            $respawnNew = <<<'PHP'
+        if ($canRespawn ?? $team->isBedAlive()) {
+            $playerInventoryContents = $gameSettings->hasKeepInventory() ? $player->getInventory()->getContents() : null;
+PHP;
+            if (substr_count($listenerContent, $respawnOld) !== 1) {
+                fwrite(STDERR, "ERROR: Unexpected BedWars respawn decision.\n");
+                exit(1);
+            }
+            $listenerContent = str_replace($respawnOld, $respawnNew, $listenerContent);
+        }
+        $updated[$listenerMember] = $listenerContent;
+    }
+
     $found = 0;
     foreach ($classes as $class) {
         $member = "vendor/nethergamesmc/libvanilla/block/tile/$class.php";
