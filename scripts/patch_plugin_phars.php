@@ -37,6 +37,38 @@ foreach (array_slice($argv, 1) as $path) {
     }
     $phar = new Phar($path);
     $updated = [];
+    // Randomize BedWars team colours once per newly constructed arena.
+    // Queue balancing and parties still work normally; team IDs continue
+    // to point to the original coloured bases, beds and generators.
+    if (basename($path) === 'xBedwars.phar') {
+        $member = 'src/bedwars/BWArena.php';
+        if (!isset($phar[$member])) {
+            fwrite(STDERR, "ERROR: Missing BedWars arena in xBedwars PHAR.\n");
+            exit(1);
+        }
+        $content = $phar[$member]->getContent();
+        $before = <<<'PHP'
+        });
+
+        $arenas = $this->getPlugin()->getMaps($modeId, !$privateGame);
+PHP;
+        $after = <<<'PHP'
+        });
+        // ReNether: shuffle physical team slots before any player joins.
+        // Keep the team objects (and their map colour IDs) intact.
+        \\shuffle($this->teams);
+
+        $arenas = $this->getPlugin()->getMaps($modeId, !$privateGame);
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[ReNether] Already patched: randomized BedWars team colours\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected BWArena team initialization; refusing change.\n");
+            exit(1);
+        }
+    }
     $found = 0;
     foreach ($classes as $class) {
         $member = "vendor/nethergamesmc/libvanilla/block/tile/$class.php";
