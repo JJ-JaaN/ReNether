@@ -56,7 +56,7 @@ PHP;
         });
         // ReNether: shuffle physical team slots before any player joins.
         // Keep the team objects (and their map colour IDs) intact.
-        \\shuffle($this->teams);
+        \shuffle($this->teams);
 
         $arenas = $this->getPlugin()->getMaps($modeId, !$privateGame);
 PHP;
