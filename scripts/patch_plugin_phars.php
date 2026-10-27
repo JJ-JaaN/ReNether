@@ -37,6 +37,62 @@ foreach (array_slice($argv, 1) as $path) {
     }
     $phar = new Phar($path);
     $updated = [];
+    // ReNether: the original NetherGames countdown uses private-use font
+    // glyphs supplied by its resource pack. Without that pack, Bedrock
+    // displays blank/grey boxes instead of 5, 4, 3, 2, 1 and GO.
+    // Patch both copies, because libminigames can be bundled in either PHAR.
+    $member = 'vendor/nethergamesmc/libminigames/tasks/CountDownTask.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $replacements = [
+            'CustomIcon::ONE' => "'1'",
+            'CustomIcon::TWO' => "'2'",
+            'CustomIcon::THREE' => "'3'",
+            'CustomIcon::FOUR' => "'4'",
+            'CustomIcon::FIVE' => "'5'",
+            'CustomIcon::GO' => "'GO!'",
+            'CustomIcon::HOURGLASS' => "''",
+        ];
+        $patched = str_replace(array_keys($replacements), array_values($replacements), $content);
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Replaced missing countdown resource-pack glyphs with text\n";
+        } else {
+            echo "[ReNether] Already compatible: resource-pack-free countdown\n";
+        }
+    }
+
+    // The inventory-based upgrade screen uses legacy InvMenu transactions.
+    // Until those are tested on Bedrock 26.50, keep upgrades and traps usable
+    // via the existing native Bedrock form. The item shop remains unchanged.
+    $member = 'src/bedwars/shops/Upgrader.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        $before = <<<'PHP'
+        if ($chestUI) {
+            $this->menu->send($player, $team);
+        } else {
+            $this->form->send($player, $team);
+        }
+PHP;
+        $after = <<<'PHP'
+        // ReNether: native forms bypass unsupported chest-menu transactions.
+        $this->form->send($player, $team);
+PHP;
+        if (str_contains($content, $after)) {
+            echo "[ReNether] Already compatible: native BedWars upgrade form\n";
+        } elseif (substr_count($content, $before) === 1) {
+            $updated[$member] = str_replace($before, $after, $content);
+            echo "[ReNether] Enabled native BedWars upgrades and traps form\n";
+        } else {
+            fwrite(STDERR, "ERROR: Unexpected BedWars Upgrader::send implementation.\n");
+            exit(1);
+        }
+    } elseif (basename($path) === 'xBedwars.phar') {
+        fwrite(STDERR, "ERROR: Missing Upgrader.php in xBedwars PHAR.\n");
+        exit(1);
+    }
+
     // Randomize BedWars team colours once per newly constructed arena.
     // Queue balancing and parties still work normally; team IDs continue
     // to point to the original coloured bases, beds and generators.
