@@ -4,6 +4,28 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 **Licence i prava:** Ovaj [GitHub repozitorij](https://github.com/JJ-JaaN/ReNether) je **javan**. [ATTRIBUTION.md](ATTRIBUTION.md) navodi izvorne autore, a [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md) dokumentira uvjete, obveze prema mrežnim korisnicima i još neriješeno neslaganje između AGPL licence i vlasničkih zaglavlja dijela NetherGames pluginova. Javnost repozitorija nije automatska potvrda da je dostupan sav odgovarajući izvorni kod pokrenute verzije. **Ne smatrati projekt potpuno pravno usklađenim dok se to ne razjasni.**
 
+## BedWars kompatibilnost: upgrades i countdown
+
+Patcher u `scripts/patch_plugin_phars.php` pri pokretanju pokušava zamijeniti
+NetherGamesove znakove za odbrojavanje (`5, 4, 3, 2, 1, GO!`) običnim
+tekstom. Originalni znakovi zahtijevaju posebni resource-pack font i bez
+njega mogu izgledati kao sivi ili prazni pravokutnici.
+
+Za **UPGRADES & TRAPS** trenutačno se uvijek koristi izvorna Bedrock
+forma umjesto inventarskog InvMenu prozora, neovisno o postavci
+`Chest UI`. Time se zaobilazi nepouzdano ponašanje inventarskih
+transakcija na novom protokolu. **ITEM SHOP** nije promijenjen.
+Ovo je kompatibilnosni workaround, ne potvrda da su sve vrste nadogradnji
+testirane. Ako kupnja i dalje ne radi, sačuvaj konzolni stack trace i
+provjeri odlaze li dijamanti i mijenja li se stvarni efekt nadogradnje.
+
+Odbrojavanje počinje tek kad postoji dovoljno igrača: Solo 2,
+Doubles 4, Trios 6, Squads 8. U privatnoj igri konfiguracija može
+dopustiti raniji početak. Za test nakon `git pull` zaustavi server
+normalno s `stop`, ponovno ga pokreni standardnim `./start.sh`
+i provjeri log oznake `resource-pack-free countdown` i
+`native BedWars upgrade form` ili poruke o njihovoj primjeni.
+
 **Status: eksperimentalno.** Originalni pluginovi i dalje mogu imati nekompatibilnosti s Axolotl-PM 5.49.1. Promjena imena ne mijenja unutarnje klase, izvorne licence ili API-je.
 
 ## Ubuntu 24.04+ (odvojeni testni server)
