@@ -81,6 +81,17 @@ if [[ "$REBUILD" == 1 || ! -s "$ZURI_PHAR" ]]; then
   log "Installed Zuri.phar"
 fi
 
+# Patch both fresh and already-installed Zuri PHARs. Copy to an archive
+# with a .phar extension, validate/patch there, then atomically replace it.
+# A failed patch must never leave a half-modified live anti-cheat behind.
+ZURI_PATCH_TMP="$DATA/plugins/.Zuri-rewrite.$.phar"
+cp -- "$ZURI_PHAR" "$ZURI_PATCH_TMP"
+if ! "$PHP" -dphar.readonly=0 "$(dirname "$(realpath "$0")")/patch_zuri_phar.php" "$ZURI_PATCH_TMP"; then
+  rm -f -- "$ZURI_PATCH_TMP"
+  die "Zuri lobby Speed patch failed (original Zuri.phar preserved)"
+fi
+mv -f -- "$ZURI_PATCH_TMP" "$ZURI_PHAR"
+
 # Never overwrite administrator config. For first-time installs, start in
 # flag-only mode to prevent false kicks/bans in BedWars movement/combat.
 if [[ ! -e "$ZURI_CONFIG" ]]; then
