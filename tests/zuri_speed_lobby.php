@@ -84,7 +84,10 @@ PHP;
     if (substr_count($reg, 'function isReNetherWaitingWorld') !== 1 ||
         substr_count($reg, 'ReNether: never schedule Speed tests') !== 1 ||
         substr_count($res, 'ReNether: discard Speed results') !== 1) {
-        throw new RuntimeException('Patcher was not idempotent or failed insertion');
+        throw new RuntimeException('Patcher was not idempotent or failed insertion: method=' .
+            substr_count($reg, 'function isReNetherWaitingWorld') .
+            ' schedule=' . substr_count($reg, 'ReNether: never schedule Speed tests') .
+            ' results=' . substr_count($res, 'ReNether: discard Speed results'));
     }
     if (strpos($res, 'ReNether: discard Speed results') >
         strpos($res, '$playerZuri = ZuriAC::getPlayerManager()')) {
