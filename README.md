@@ -12,13 +12,13 @@ ReNether sada podržava **Zuri 1.4.2-BETA** iz izvornog repozitorija
 gradi iz izvora pomoću Composera i Pharynxa. Koristi se lokalni PHP runtime
 koji već koristi Axolotl-PM 5.49.1. Ne preuzima se neprovjereni "latest" PHAR.
 
-- Zadano: `NG_ENABLE_ZURI=1 ./start.sh`. Starter izrađuje
+- Pokretanje testnog anti-cheata: `NG_ENABLE_ZURI=1 ./start.sh`. Starter izrađuje
   `.runtime/data/plugins/Zuri.phar` i prvi put postavlja
   `.runtime/data/plugin_data/Zuri/config.yml`.
 - **Početni režim je samo detekcija**: sve konfigurirane kazne postavljene
   su na `flag` umjesto `kick` ili `ban`. Zuri zapisuje upozorenja,
   ali ne izbacuje igrače zbog detekcija u ovoj konfiguraciji.
-- `NG_ENABLE_ZURI=0 ./start.sh` isključuje Zuri premještanjem datoteke
+- **Zadano je isključen**, dok se ne potvrdi kompatibilnost. `NG_ENABLE_ZURI=0 ./start.sh` isključuje Zuri premještanjem datoteke
   u `Zuri.phar.disabled` bez brisanja postojećih podataka.
 - `NG_REBUILD=1 ./start.sh` ponovno gradi Zuri iz zaključanog commita.
   Postojeća administratorska konfiguracija **nikad se automatski ne prepisuje**.
