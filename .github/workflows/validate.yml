@@ -10,6 +10,7 @@ jobs:
       - name: Shell syntax
         run: |
           bash -n start.sh
+          bash -n scripts/setup_zuri.sh
           bash -n scripts/migrate_assets.sh
       - name: Python syntax
         run: python3 -m py_compile scripts/apply_compat.py
