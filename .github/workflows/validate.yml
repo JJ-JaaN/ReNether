@@ -15,6 +15,11 @@ jobs:
       - name: Python syntax
         run: python3 -m py_compile scripts/apply_compat.py
       - name: PHP syntax
-        run: php -l scripts/patch_plugin_phars.php
+        run: |
+          php -l scripts/patch_plugin_phars.php
+          php -l plugins/ReNetherHubPvP/src/renether/hubpvp/Main.php
+          php -l tests/hub_pvp.php
+      - name: Main Hub OP-only PvP tests
+        run: php tests/hub_pvp.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
