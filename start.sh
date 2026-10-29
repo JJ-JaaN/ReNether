@@ -338,6 +338,35 @@ if [[ "$GAME" == Bedwars ]]; then
     }
   ' "$DATA/plugins/NGEssentials.phar" "$BRAND_PHAR" ||
     die "Cannot start with old NG branding PHAR."
+
+  # Main Hub PvP: only operators may damage other players. This separate,
+  # dependency-free plugin does not change any minigame PHAR or world data.
+  HUB_PVP_SOURCE="$ROOT/plugins/ReNetherHubPvP"
+  HUB_PVP_PHAR="$DATA/plugins/ReNetherHubPvP.phar"
+  [[ -f "$HUB_PVP_SOURCE/plugin.yml" &&
+     -f "$HUB_PVP_SOURCE/src/renether/hubpvp/Main.php" ]] ||
+    die "ReNetherHubPvP source missing. Pull latest ReNether."
+  log "Building ReNetherHubPvP (OP-only player damage in main Hub)"
+  (
+    cd "$HUB_PVP_SOURCE"
+    "$PHP" -dphar.readonly=0 -r "require 'phar://$DEVTOOLS/src/ConsoleScript.php';" -- \
+      --make . --relative . --out "$HUB_PVP_PHAR"
+  )
+  [[ -s "$HUB_PVP_PHAR" ]] || die "ReNetherHubPvP PHAR build failed"
+  "$PHP" -r '
+    $p = new Phar($argv[1]);
+    $src = "src/renether/hubpvp/Main.php";
+    if (!isset($p["plugin.yml"]) || !isset($p[$src])) {
+      fwrite(STDERR, "ReNetherHubPvP PHAR is incomplete\n");
+      exit(1);
+    }
+    $metadata = yaml_parse($p["plugin.yml"]->getContent());
+    if (!is_array($metadata) ||
+        ($metadata["main"] ?? null) !== "renether\\hubpvp\\Main") {
+      fwrite(STDERR, "ReNetherHubPvP plugin entrypoint mismatch\n");
+      exit(1);
+    }
+  ' "$HUB_PVP_PHAR" || die "ReNetherHubPvP PHAR verification failed"
 fi
 
 if [[ $EUID -eq 0 ]]; then
