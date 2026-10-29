@@ -34,6 +34,38 @@ primjene te postavke, pa je ne treba smatrati zaštitom od lažnih detekcija.
 Nemoj uključivati automatske kazne prije stvarnih testova. Ako Zuri build
 ne uspije, podigni postojeći server sa `NG_ENABLE_ZURI=0`.
 
+## ZuriAC: false positive Speed u lobbyjima
+
+**Popravak za ReNether**: Zuri 1.4.2-BETA je prijavljivao
+`Speed (A/B)` i legitimnim igračima u pre-match waiting svjetovima.
+NetherGames kreira zasebne svjetove `Waiting-bw-0`, `Waiting-bw-1` itd.,
+dok su aktivne arene `Match-bw-*`. Obična `world_bypass` konfiguracija
+iz trenutnog Zurija ne sprečava obradu tih provjera.
+
+`scripts/patch_zuri_phar.php` na sljedećem pokretanju dodaje dvije zaštite:
+- Speed A/B se **ne šalju** u worker queue kada je igrač u `Hub`,
+  `ArcadeLobby`, `Lobby`, `WaitingLobby`, `BWSublobby2024`
+  ili bilo kojem `Waiting-*` svijetu.
+- Ako Speed rezultat stigne naknadno dok je igrač u waiting svijetu,
+  ignorira se prije debug prikaza i VL/flag logike.
+
+**Aktivne `Match-*` arene ostaju zaštićene Speed provjerama.**
+Ostale Zuri provjere, BedWars fizika i postavke kazni nisu promijenjene.
+Patcher je idempotentan i koristi privremenu PHAR kopiju prije zamjene.
+Postojeći korisnički `plugin_data/Zuri/config.yml` se ne prepisuje.
+Za zaštitu nije potreban `NG_REBUILD=1`.
+
+Za primjenu: zaustavi server naredbom `stop`, povuci novu verziju
+(`git pull --ff-only`) pa pokreni s `NG_ENABLE_ZURI=1 bash ./start.sh`
+i dosadašnjim `NG_PORT`. U logu provjeri
+`[ReNether/Zuri] Excluded static and dynamic waiting lobbies from Speed checks`
+ili `Already patched: lobby Speed protection`.
+
+Napomena: ovo uklanja potvrđeni izvor lažnih lobby detekcija, **ne**
+potvrđuje da su sve Speed provjere u aktivnim mečevima bez false positive
+rezultata. I dalje koristi `punishment: flag` do testiranja u mečevima.
+Offline provjera: `php -dphar.readonly=0 tests/zuri_speed_lobby.php`.
+
 ## Glavni Hub: borba samo za OP igrače
 
 Na glavnom BedWars/Hub serveru `start.sh` automatski gradi i učitava
