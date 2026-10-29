@@ -47,7 +47,19 @@ mkdir -p "$STATE" "$CACHE" "$SOURCES" "$DATA/plugins" "$DATA/worlds" "$DATA/plug
 chmod 700 "$STATE"
 log(){ printf '[ReNether] %s\n' "$*"; }
 die(){ printf '[ReNether] ERROR: %s\n' "$*" >&2; exit 1; }
-[[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT>0 && PORT<65536 )) || die "Invalid NG_PORT: $PORT"
+# When NG_PORT is absent, reuse the port of an already-installed server.
+# Previously every restart silently replaced a saved 19132 with the default
+# 19133; players using their existing IP:port then could no longer connect.
+# Explicit NG_PORT always takes precedence and first-time installs retain the
+# default port above.
+if [[ -z "${NG_PORT:-}" && -f "$DATA/server.properties" ]]; then
+  EXISTING_PORT="$(sed -nE 's/^[[:space:]]*server-port=([0-9]+)[[:space:]]*$/\1/p' "$DATA/server.properties" | tail -n 1)"
+  if [[ -n "$EXISTING_PORT" ]]; then
+    PORT="$EXISTING_PORT"
+    log "Keeping existing configured server port: $PORT (override with NG_PORT)"
+  fi
+fi
+[[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT>0 && PORT<65536 )) || die "Invalid server port: $PORT"
 
 if [[ ! -f "$STATE/dependencies-installed" ]]; then
   if [[ $EUID -eq 0 ]]; then
