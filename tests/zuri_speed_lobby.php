@@ -88,8 +88,8 @@ PHP;
             substr_count($reg, 'function isReNetherWaitingWorld') .
             ' schedule=' . substr_count($reg, 'ReNether: never schedule Speed tests') .
             ' results=' . substr_count($res, 'ReNether: discard Speed results') .
-            ' registry_preview=' . substr($reg, strpos($reg, 'foreach ($checks as $check)'), 450) .
-            ' results_preview=' . substr($res, strpos($res, '$playerZuri =') - 200, 400));
+            ' registry_preview=' . substr($reg, 0, 1600) .
+            ' results_preview=' . substr($res, 0, 650));
     }
     if (strpos($res, 'ReNether: discard Speed results') >
         strpos($res, '$playerZuri = ZuriAC::getPlayerManager()')) {
