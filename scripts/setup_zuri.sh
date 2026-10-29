@@ -98,16 +98,12 @@ if [[ ! -e "$ZURI_CONFIG" ]]; then
       }
     }
     unset($check);
-    $config["zuri"]["world_bypass"] = [
-      "mode" => "blacklist",
-      "list" => ["Hub", "ArcadeLobby", "WaitingLobby"]
-    ];
     if (yaml_emit_file($argv[2], $config) !== true) {
       fwrite(STDERR, "Cannot write Zuri config\n");
       exit(1);
     }
   ' "$ZURI_PHAR" "$ZURI_CONFIG" || die "Cannot generate safe Zuri config"
-  log "Created flag-only Zuri configuration; Hub and waiting lobbies bypassed"
+  log "Created flag-only Zuri configuration (no automatic kicks or bans)"
 else
   log "Keeping existing Zuri configuration unchanged"
 fi
