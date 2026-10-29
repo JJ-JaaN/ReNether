@@ -4,6 +4,36 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 **Licence i prava:** Ovaj [GitHub repozitorij](https://github.com/JJ-JaaN/ReNether) je **javan**. [ATTRIBUTION.md](ATTRIBUTION.md) navodi izvorne autore, a [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md) dokumentira uvjete, obveze prema mrežnim korisnicima i još neriješeno neslaganje između AGPL licence i vlasničkih zaglavlja dijela NetherGames pluginova. Javnost repozitorija nije automatska potvrda da je dostupan sav odgovarajući izvorni kod pokrenute verzije. **Ne smatrati projekt potpuno pravno usklađenim dok se to ne razjasni.**
 
+## ZuriAC (eksperimentalni anti-cheat)
+
+ReNether sada podržava **Zuri 1.4.2-BETA** iz izvornog repozitorija
+[ReinfyTeam/Zuri](https://github.com/ReinfyTeam/Zuri), zaključan na commit
+`ed582c94695ffbeaf2559f1271ff9c664ee5619e`. Zuri se na prvom pokretanju
+gradi iz izvora pomoću Composera i Pharynxa. Koristi se lokalni PHP runtime
+koji već koristi Axolotl-PM 5.49.1. Ne preuzima se neprovjereni "latest" PHAR.
+
+- Zadano: `NG_ENABLE_ZURI=1 ./start.sh`. Starter izrađuje
+  `.runtime/data/plugins/Zuri.phar` i prvi put postavlja
+  `.runtime/data/plugin_data/Zuri/config.yml`.
+- **Početni režim je samo detekcija**: sve konfigurirane kazne postavljene
+  su na `flag` umjesto `kick` ili `ban`. Zuri zapisuje upozorenja,
+  ali ne izbacuje igrače zbog detekcija u ovoj konfiguraciji.
+- `NG_ENABLE_ZURI=0 ./start.sh` isključuje Zuri premještanjem datoteke
+  u `Zuri.phar.disabled` bez brisanja postojećih podataka.
+- `NG_REBUILD=1 ./start.sh` ponovno gradi Zuri iz zaključanog commita.
+  Postojeća administratorska konfiguracija **nikad se automatski ne prepisuje**.
+- U konzoli provjeri poruke o učitavanju, naredbu `plugins` i
+  `zuri help` (odgovarajuće ovlasti su potrebne).
+  `NG_BUILD_ONLY=1` potvrđuje build, ali **ne** i rad tijekom meča.
+
+**Važno:** podrška za Axolotl-PM i ponašanje u BedWarsu još nisu potvrđeni
+testiranjem. Zuri koristi mrežne i gameplay evente; BedWars knockback,
+fireball-jump, teleporti i posebne mehanike mogu davati lažne detekcije.
+Konfiguracija nudi `world_bypass`, ali u zaključanom kodu nema potvrđene
+primjene te postavke, pa je ne treba smatrati zaštitom od lažnih detekcija.
+Nemoj uključivati automatske kazne prije stvarnih testova. Ako Zuri build
+ne uspije, podigni postojeći server sa `NG_ENABLE_ZURI=0`.
+
 ## BedWars kompatibilnost: upgrades i countdown
 
 Patcher u `scripts/patch_plugin_phars.php` pri pokretanju pokušava zamijeniti
