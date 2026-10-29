@@ -9,8 +9,10 @@ CACHE="$ROOT/.cache"
 GAME="${NG_GAME:-Bedwars}"
 SOCCER_ENABLED="${NG_ENABLE_SOCCER:-0}"
 SKYWARS_ENABLED="${NG_ENABLE_SKYWARS:-0}"
+ZURI_ENABLED="${NG_ENABLE_ZURI:-1}"
 [[ "$SKYWARS_ENABLED" == 0 || "$SKYWARS_ENABLED" == 1 ]] || { echo "[ReNether] ERROR: NG_ENABLE_SKYWARS must be 0 or 1" >&2; exit 2; }
 [[ "$SOCCER_ENABLED" == 0 || "$SOCCER_ENABLED" == 1 ]] || { echo '[ReNether] ERROR: NG_ENABLE_SOCCER must be 0 or 1' >&2; exit 2; }
+[[ "$ZURI_ENABLED" == 0 || "$ZURI_ENABLED" == 1 ]] || { echo '[ReNether] ERROR: NG_ENABLE_ZURI must be 0 or 1' >&2; exit 2; }
 case "$GAME" in
   Bedwars)
     DATA="$STATE/data"
@@ -274,6 +276,10 @@ fi
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
   "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
   ${SOCCER_PHAR:+"$SOCCER_PHAR"} ${SKYWARS_PHAR:+"$SKYWARS_PHAR"}
+
+# Install Zuri AC (enabled by default, first run is flag-only). Its
+# own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
+bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
 
 # Build the small first-party sign rebranding plugin on every main-server
 # boot, so already existing worlds are updated as chunks are loaded.
