@@ -18,7 +18,10 @@ if (($argv[1] ?? null) === '--verify') {
 
     if (substr_count($reg, 'function isReNetherWaitingWorld') !== 1 ||
         substr_count($reg, 'ReNether: never schedule Speed tests') !== 1 ||
-        substr_count($res, 'ReNether: discard Speed results') !== 1) {
+        substr_count($res, 'ReNether: discard Speed results') !== 1 ||
+        substr_count($res, 'ReNether: let OP/bypass players see their own detections.') !== 1 ||
+        substr_count($res, '$monitorOnly ? "flag" : $check->getPunishment()') !== 1 ||
+        str_contains($res, 'return; // if the player has bypass permission')) {
         throw new RuntimeException('Patcher is not idempotent or failed insertion');
     }
     if (strpos($res, 'ReNether: discard Speed results') >
@@ -49,6 +52,66 @@ if (($argv[1] ?? null) === '--verify') {
         }
         echo "PASS: $world " . ($actual ? 'excluded' : 'protected') . "\n";
     }
+    // Runtime smoke test of the *patched* fixture: bypass players still
+    // receive a flag-style outcome, ordinary players keep their punishment,
+    // and a clean check or protected lobby doesn't produce a violation.
+    class FakeWorld {
+        public function __construct(private readonly string $folderName) {}
+        public function getFolderName(): string { return $this->folderName; }
+    }
+    class FakePlayer {
+        public function __construct(public bool $bypass, private string $worldName) {}
+        public function getWorld(): FakeWorld { return new FakeWorld($this->worldName); }
+    }
+    class FakeCheck {
+        public function __construct(private string $punishment, private string $name) {}
+        public function getPunishment(): string { return $this->punishment; }
+        public function getName(): string { return $this->name; }
+    }
+    class FakePlayerProfile {
+        public function __construct(private bool $bypass) {}
+        public function hasBypassPermission(): bool { return $this->bypass; }
+    }
+    class FakePlayerManager {
+        public function get(FakePlayer $player): FakePlayerProfile {
+            return new FakePlayerProfile($player->bypass);
+        }
+    }
+    class FakeZuri {
+        public static function getPlayerManager(): FakePlayerManager {
+            return new FakePlayerManager();
+        }
+    }
+    class FakeUtils {
+        public static function readArray(mixed $value): array { return is_array($value) ? $value : []; }
+        public static function readBool(mixed $value): bool { return $value === true; }
+    }
+
+    class_alias(FakePlayer::class, 'pocketmine\player\Player');
+    class_alias(FakeCheck::class, 'ReinfyTeam\Zuri\check\Check');
+    class_alias(FakeZuri::class, 'ReinfyTeam\Zuri\ZuriAC');
+    class_alias(FakeUtils::class, 'ReinfyTeam\Zuri\utils\Utils');
+    require 'phar://' . $pharFile . '/' . $resPath;
+
+    $handler = \ReinfyTeam\Zuri\check\ResultsHandler::class;
+    $cases = [
+        ['operator with kick config', ['failed' => true, 'bypass' => true, 'punishment' => 'kick'], 'flag'],
+        ['operator with ban config', ['failed' => true, 'bypass' => true, 'punishment' => 'ban'], 'flag'],
+        ['operator with no detection', ['failed' => false, 'bypass' => true, 'punishment' => 'ban'], null],
+        ['public player kick config', ['failed' => true, 'bypass' => false, 'punishment' => 'kick'], 'kick'],
+        ['public player ban config', ['failed' => true, 'bypass' => false, 'punishment' => 'ban'], 'ban'],
+        ['operator in Hub Speed', ['failed' => true, 'bypass' => true, 'punishment' => 'ban', 'checkName' => 'Speed', 'world' => 'Hub'], null],
+        ['operator in match Speed', ['failed' => true, 'bypass' => true, 'punishment' => 'ban', 'checkName' => 'Speed', 'world' => 'Match-bw-0'], 'flag'],
+    ];
+    foreach ($cases as [$label, $input, $expected]) {
+        $handler::$lastPunishment = null;
+        $handler::handle($input);
+        if ($handler::$lastPunishment !== $expected) {
+            throw new RuntimeException("Failed $label: " . var_export($handler::$lastPunishment, true));
+        }
+        echo "PASS: $label\n";
+    }
+    echo "PASS: Zuri bypass players are monitored without kick/ban\n";
     echo "PASS: Zuri lobby Speed patch is idempotent and leaves match worlds protected\n";
     exit(0);
 }
@@ -79,15 +142,30 @@ PHP;
     $resultsSource = <<<'PHP'
 <?php
 namespace ReinfyTeam\Zuri\check;
+use pocketmine\player\Player;
 use ReinfyTeam\Zuri\ZuriAC;
 use ReinfyTeam\Zuri\utils\Utils;
 class ResultsHandler {
+    public static ?string $lastPunishment = null;
+
     public static function handle(array $result): void {
-        $player = null;
-        $checkInstance = null;
+        $player = new Player((bool)($result["bypass"] ?? false), $result["world"] ?? "Match-bw-0");
+        $checkInstance = new Check($result["punishment"] ?? "kick", $result["checkName"] ?? "Reach");
 		$playerZuri = ZuriAC::getPlayerManager()->get($player);
 
 		$externalData = Utils::readArray($result["externalData"] ?? null);
+		if ($playerZuri->hasBypassPermission()) {
+			return; // if the player has bypass permission, we do not apply any violations or punishments
+		}
+
+		if (Utils::readBool($result["failed"]) === true) {
+			self::handlePunishment($player, $checkInstance);
+		}
+    }
+
+	private static function handlePunishment(Player $player, Check $check) : void {
+        $punishment = $check->getPunishment();
+        self::$lastPunishment = $punishment;
     }
 }
 PHP;
