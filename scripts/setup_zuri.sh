@@ -53,8 +53,13 @@ if [[ "$REBUILD" == 1 || ! -s "$ZURI_PHAR" ]]; then
 
   (
     cd "$ZURI_SOURCE"
+    # Pharynx starts its own nested Composer process during packaging.
+    # When ReNether is started as root, every nested Composer invocation
+    # must see the explicit opt-in or it will stop to ask interactively.
+    # Keep this scoped to the Zuri build subshell.
+    export COMPOSER_ALLOW_SUPERUSER=1
     # Build tooling (pharynx) is a dev dependency, so do NOT use --no-dev.
-    COMPOSER_ALLOW_SUPERUSER=1 "$PHP" "$COMPOSER_PHAR" install \
+    "$PHP" "$COMPOSER_PHAR" install \
       --prefer-dist --no-interaction --no-progress
     "$PHP" tools/prepare-build.php
     "$PHP" -dphar.readonly=0 vendor/bin/pharynx -i=. -c -p=./build/Zuri.phar
