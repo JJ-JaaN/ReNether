@@ -17,9 +17,13 @@ jobs:
       - name: PHP syntax
         run: |
           php -l scripts/patch_plugin_phars.php
+          php -l scripts/patch_zuri_phar.php
+          php -l tests/zuri_speed_lobby.php
           php -l plugins/ReNetherHubPvP/src/renether/hubpvp/Main.php
           php -l tests/hub_pvp.php
       - name: Main Hub OP-only PvP tests
         run: php tests/hub_pvp.php
+      - name: Zuri lobby Speed regression tests
+        run: php -dphar.readonly=0 tests/zuri_speed_lobby.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
