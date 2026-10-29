@@ -68,7 +68,7 @@ if [[ "$REBUILD" == 1 || ! -s "$ZURI_PHAR" ]]; then
   [[ -s "$ZURI_SOURCE/build/Zuri.phar" ]] || die "Zuri PHAR build produced no output"
   "$PHP" -r '
     $p = new Phar($argv[1]);
-    foreach (["plugin.yml", "vendor/autoload.php", "resources/config.yml"] as $entry) {
+    foreach (["plugin.yml", "src/ReinfyTeam/Zuri/ZuriAC.php", "resources/config.yml", "resources/constants.yml"] as $entry) {
       if (!isset($p[$entry])) {
         fwrite(STDERR, "Missing Zuri PHAR entry: $entry\n");
         exit(1);
