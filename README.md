@@ -71,6 +71,8 @@ chmod +x start.sh
 
 Za korištenje porta 19132 nakon gašenja starog poslužitelja: `NG_PORT=19132 ./start.sh`. Za novi build: `NG_REBUILD=1 ./start.sh`. Za build bez pokretanja: `NG_BUILD_ONLY=1 ./start.sh`.
 
+**Port pri restartu:** Ako `NG_PORT` nije zadan, `start.sh` sada zadržava postojeći `server-port` iz `.runtime/data/server.properties` (npr. 19132), umjesto da ga prepiše na zadani 19133. Za novu instalaciju zadano ostaje 19133. Ako je starija verzija startera već prepisala spremljeni port, jednom ponovno postavi željeni port pomoću `NG_PORT=19132 bash ./start.sh` nakon što ugasiš stari proces. ZuriAC ne mijenja Minecraft protokol ili port.
+
 Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaDB, dok se upstream kodovi preuzimaju u `upstream/`. Git ignorira binarne buildove, podatke igrača i tajne. Nikad ne komitiraj `.runtime/` u Git.
 
 **Nema Dockera, phpMyAdmina niti obaveznog proxyja.** Za test je uključen NGEssentials development mode. Autentifikacija Xboxa je omogućena u lokalnom `server.properties`. Baza je lokalna MariaDB. Ovo nije gotova produkcijska konfiguracija.
