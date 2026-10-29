@@ -34,6 +34,26 @@ primjene te postavke, pa je ne treba smatrati zaštitom od lažnih detekcija.
 Nemoj uključivati automatske kazne prije stvarnih testova. Ako Zuri build
 ne uspije, podigni postojeći server sa `NG_ENABLE_ZURI=0`.
 
+## Glavni Hub: borba samo za OP igrače
+
+Na glavnom BedWars/Hub serveru `start.sh` automatski gradi i učitava
+`ReNetherHubPvP.phar` iz `plugins/ReNetherHubPvP/`.
+U svijetu **`Hub`** samo igrači s PocketMine operatorskom dozvolom
+`pocketmine.group.operator` mogu nanijeti štetu drugim igračima,
+uključujući napade projektilima. Udarcima običnih igrača u `Hub`
+poništava se damage event (nema štete ili knockbacka iz tog eventa).
+
+Promjena ne utječe na svjetove BedWars/SkyWars arena, `ArcadeLobby`,
+waiting lobbyje, NPC-jeve ni napade mobova. Postojeći event cancellation
+drugih pluginova se ne prepisuje: OP može napadati samo ako napad
+nije blokiran drugim pravilima ili postavkom poslužitelja.
+
+**Ažuriranje:** zaustavi server naredbom `stop`, zatim `git pull --ff-only`
+i pokreni standardnim `bash ./start.sh`, uz dosadašnje vrijednosti
+`NG_PORT` i `NG_ENABLE_ZURI`. U konzoli provjeri `plugins` i poruku
+`Hub combat protection active`. Ne treba `NG_REBUILD=1`.
+Za provjeru iz repozitorija: `php tests/hub_pvp.php`.
+
 ## BedWars kompatibilnost: upgrades i countdown
 
 Patcher u `scripts/patch_plugin_phars.php` pri pokretanju pokušava zamijeniti
