@@ -93,6 +93,31 @@ PHP;
 		$externalData = Utils::readArray($result["externalData"] ?? null);
 PHP;
 
+    // Upstream Zuri returns before recording violations for anyone with
+    // zuri.bypass (including OP players). Allow these players to see their
+    // own detection/threshold messages, but *never* kick or ban them.
+    $bypassBefore = <<<'PHP'
+		if ($playerZuri->hasBypassPermission()) {
+			return; // if the player has bypass permission, we do not apply any violations or punishments
+		}
+
+		if (Utils::readBool($result["failed"]) === true) {
+			self::handlePunishment($player, $checkInstance);
+		}
+PHP;
+    $bypassAfter = <<<'PHP'
+		// ReNether: let OP/bypass players see their own detections.
+		// The bypass still prevents punishments; it now means monitor-only.
+		if (Utils::readBool($result["failed"]) === true) {
+			self::handlePunishment($player, $checkInstance, $playerZuri->hasBypassPermission());
+		}
+PHP;
+
+    $punishmentSignatureBefore = 'private static function handlePunishment(Player $player, Check $check) : void {';
+    $punishmentSignatureAfter = 'private static function handlePunishment(Player $player, Check $check, bool $monitorOnly = false) : void {';
+    $punishmentBefore = '$punishment = $check->getPunishment();';
+    $punishmentAfter = '$punishment = $monitorOnly ? "flag" : $check->getPunishment();';
+
     $marker = 'public static function isReNetherWaitingWorld(string $worldName): bool';
     if (!str_contains($registry, $marker)) {
         $classAnchor = "class CheckRegistry {\n";
@@ -114,11 +139,27 @@ PHP;
         $results = str_replace($resultsBefore, $resultsAfter, $results);
     }
 
+    // Update both pristine and already-lobby-patched Zuri PHARs.
+    // Exact upstream anchors prevent silently patching an incompatible fork.
+    if (!str_contains($results, 'ReNether: let OP/bypass players see their own detections.')) {
+        if (substr_count($results, $bypassBefore) !== 1 ||
+            substr_count($results, $punishmentSignatureBefore) !== 1 ||
+            substr_count($results, $punishmentBefore) !== 1) {
+            throw new RuntimeException('Unexpected Zuri bypass / punishment implementation');
+        }
+        $results = str_replace($bypassBefore, $bypassAfter, $results);
+        $results = str_replace($punishmentSignatureBefore, $punishmentSignatureAfter, $results);
+        $results = str_replace($punishmentBefore, $punishmentAfter, $results);
+    }
+
     // Avoid accepting a partially patched PHAR.
     if (!str_contains($registry, $marker) ||
         !str_contains($registry, 'ReNether: never schedule Speed tests inside waiting lobbies.') ||
-        !str_contains($results, 'ReNether: discard Speed results from the lobby')) {
-        throw new RuntimeException('Zuri lobby-Speed patch verification failed');
+        !str_contains($results, 'ReNether: discard Speed results from the lobby') ||
+        !str_contains($results, 'ReNether: let OP/bypass players see their own detections.') ||
+        !str_contains($results, $punishmentSignatureAfter) ||
+        !str_contains($results, $punishmentAfter)) {
+        throw new RuntimeException('Zuri lobby-Speed / OP self-alert patch verification failed');
     }
 
     $updates = [];

@@ -34,6 +34,24 @@ primjene te postavke, pa je ne treba smatrati zaštitom od lažnih detekcija.
 Nemoj uključivati automatske kazne prije stvarnih testova. Ako Zuri build
 ne uspije, podigni postojeći server sa `NG_ENABLE_ZURI=0`.
 
+## ZuriAC: vlastite OP detekcije
+
+Izvorni Zuri za igrače s `zuri.bypass` (uključujući OP)
+preskače obradu prekršaja pa oni vide tuđa upozorenja, ali ne i
+vlastite `suspected/failed/flagged` poruke. ReNetherov PHAR patch
+sada **prati i bypass igrače** i prosljeđuje njihove detekcije
+u uobičajeni adminsko-konzolni kanal.
+
+- Bypass/OP igrači **mogu biti označeni** (`flag`) i vide vlastiti VL,
+  ali **ne mogu biti automatski kickani niti banani**, čak ni kada
+  administrator postavi `punishment: kick` ili `ban` za ostale igrače.
+- Obični igrači zadržavaju dosadašnje kazne i konfiguracijske pragove.
+- Speed A/B u `Hub` i `Waiting-*` i dalje su isključeni zbog poznatih
+  lažnih detekcija. Za Speed provjeru vlastitog računa testiraj
+  u aktivnom `Match-*` svijetu.
+- Ne mijenjaj `zuri.bypass` radi testiranja: ostaje uključen za OP.
+  Ažuriranje radi bez `NG_REBUILD=1` i čuva postojeću konfiguraciju.
+
 ## ZuriAC: false positive Speed u lobbyjima
 
 **Popravak za ReNether**: Zuri 1.4.2-BETA je prijavljivao
