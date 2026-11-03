@@ -367,6 +367,26 @@ fi
 ' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_npc_addplayer.php" ||
   die "NGEssentials 26.60 NPC packet guard failed; refusing to boot."
 
+# Reject stale NGEssentials PHARs where the old int-typed input event is
+# still fed a BedrockProtocol 64 InputMode enum every movement packet.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $player = "src/NetherGames/NGEssentials/player/NGPlayer.php";
+  $event = "src/NetherGames/NGEssentials/events/PlayerInputChangeEvent.php";
+  if (!isset($phar[$player]) || !isset($phar[$event])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing input-mode PHAR members\n");
+    exit(1);
+  }
+  $source = $phar[$player]->getContent();
+  if (renetherPatchLegacyInputMode($source, $phar[$event]->getContent()) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: Input-mode PHAR still uses legacy packet ABI\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified NGEssentials InputMode event 26.60 compatibility\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_input_mode.php" ||
+  die "NGEssentials InputMode compatibility guard failed; refusing to boot."
+
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
 bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
