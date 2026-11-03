@@ -27,6 +27,8 @@ jobs:
           php -l scripts/compat_npc_addplayer.php
           php -l scripts/compat_input_mode.php
           php -l scripts/compat_add_actor.php
+          php -l scripts/compat_level_chunk_26_60.php
+          php -l tests/level_chunk_26_60.php
           php -l tests/add_actor_26_60.php
           php -l tests/input_mode_26_60.php
           php -l tests/npc_addplayer_26_60.php
@@ -53,5 +55,7 @@ jobs:
         run: php tests/input_mode_26_60.php
       - name: Bedrock 26.60 AddActorPacket compatibility tests
         run: php tests/add_actor_26_60.php
+      - name: Bedrock 26.60 world-transfer chunk compatibility tests
+        run: php tests/level_chunk_26_60.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
