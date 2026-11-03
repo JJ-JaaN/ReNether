@@ -6,6 +6,32 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### NPC spawn crash: AddPlayerPacket::create() passengerBlockData (Bedrock 26.60)
+
+If the player successfully logs into `S-Lobby-2022` but NGEssentials
+crashes spawning a Hub NPC with
+`AddPlayerPacket::create(): Argument #16 ($passengerBlockData) must be of type ?PassengerOfBlockData, string given`,
+the already built NGEssentials PHAR uses the old 17-argument ABI.
+BedrockProtocol 64 expects 18 arguments: links, **passengerBlockData**,
+deviceId, buildPlatform at positions 15-18.
+
+`scripts/compat_npc_addplayer.php` checks both
+`CustomHuman.php` and `CustomGeometryTrait.php`. It inserts the
+missing `null` for passengerBlockData into legacy packet calls, but
+preserves already-correct new packet calls. The existing plugin PHAR
+patcher applies this without requiring a Composer rebuild. The launcher
+also validates both files inside the actual PHAR before starting.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+After a successful login, test all 19 Hub NPCs, their visible skins
+and nameplates, interaction, and BedWars match join before enabling Zuri.
+
 ### NGEssentials crash: missing `Grpc\\Call` on the first server tick
 
 After `Done (1.603s)!`, older NGEssentials schedules
