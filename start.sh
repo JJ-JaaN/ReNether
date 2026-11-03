@@ -387,6 +387,25 @@ fi
 ' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_input_mode.php" ||
   die "NGEssentials InputMode compatibility guard failed; refusing to boot."
 
+# Verify that the BossBar sent after login uses the 26.60
+# AddActorPacket::create() 14-argument signature, not the legacy 13.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $member = "src/NetherGames/NGEssentials/entity/BossBar.php";
+  if (!isset($phar[$member])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing NGEssentials BossBar PHAR member\n");
+    exit(1);
+  }
+  $source = $phar[$member]->getContent();
+  if (renetherPatchAddActorPacket($source) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: BossBar retains old 13-argument AddActorPacket ABI\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified BossBar AddActorPacket 26.60 argument count\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_add_actor.php" ||
+  die "NGEssentials BossBar AddActorPacket 26.60 compatibility guard failed."
+
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
 bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
