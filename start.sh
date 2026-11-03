@@ -160,6 +160,14 @@ if [[ ! -f "$DEVTOOLS" ]]; then
 fi
 
 php_composer(){
+  # Public Axolotl core dependencies need no GitHub token. A fine-grained
+  # PAT intended for another organization can make GitHub reject public zips.
+  # Isolate this one install from global Composer auth and user token files.
+  if [[ "${RN_PUBLIC_CORE_COMPOSER:-0}" == 1 ]]; then
+    mkdir -p "$CACHE/composer-public"
+    COMPOSER_HOME="$CACHE/composer-public" COMPOSER_AUTH='{}' "$PHP" "$COMPOSER_PHAR" "$@"
+    return
+  fi
   local token="${GITHUB_TOKEN:-}"
   if [[ -z "$token" && -r /root/.config/bethergames/github-token ]]; then
     token="$(cat /root/.config/bethergames/github-token)"
@@ -196,7 +204,8 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || ! -s "$DA
   if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || "${NG_REBUILD:-0}" == 1 ]]; then
     (
       cd "$AXOLOTL_SOURCE"
-      php_composer install --prefer-dist --no-dev --classmap-authoritative --no-interaction --no-progress --no-plugins
+      python3 "$ROOT/scripts/prepare_axolotl_lock.py" "$AXOLOTL_SOURCE/composer.lock"
+      RN_PUBLIC_CORE_COMPOSER=1 php_composer install --prefer-dist --no-dev --classmap-authoritative --no-interaction --no-progress --no-plugins
       "$PHP" -dphar.readonly=0 build/server-phar.php --git "$(git rev-parse HEAD)"
       if [[ -s "$DATA/PocketMine-MP.phar" && ! -f "$CORE_VERSION_STAMP" ]]; then
         cp -p "$DATA/PocketMine-MP.phar" "$DATA/PocketMine-MP.pre-$AXOLOTL_VERSION.phar"
