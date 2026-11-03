@@ -26,6 +26,8 @@ if ($argc < 2) {
     exit(2);
 }
 
+require_once __DIR__ . '/compat_libreplay.php';
+
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
 $newSignature = 'addAdditionalSpawnData(CompoundTag $nbt): void';
@@ -359,6 +361,30 @@ PHP;
         fwrite(STDERR, "ERROR: Missing libVanilla MissingVanillaBlocks from NGEssentials PHAR.\n");
         exit(1);
     }
+    // Axolotl 5.51.1 adds Compressor::getNetworkType(). ReNether may reuse
+    // older NGEssentials.phar dependencies, whose libReplay ZstdCompressor
+    // lacks the method even when upstream libReplay now implements it.
+    // Patch the PHAR itself, not the downloaded source or player worlds.
+    $member = 'vendor/nethergamesmc/libreplay/session/utils/ZstdCompressor.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        try {
+            $patched = renetherPatchLegacyReplayCompressor($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Added libReplay Compressor::getNetworkType() in " . basename($path) . "\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / libReplay ZstdCompressor\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing libReplay ZstdCompressor in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
     // NetherGames BedrockProtocol passes an explicit protocol ID to
     // DataPacket::decodePayload()/encodePayload(). Axolotl's DataPacket
     // doesn't, and these two libReplay packet implementations do not use it.
