@@ -29,6 +29,7 @@ if ($argc < 2) {
 require_once __DIR__ . '/compat_libreplay.php';
 require_once __DIR__ . '/compat_replay_zstd.php';
 require_once __DIR__ . '/compat_optional_grpc.php';
+require_once __DIR__ . '/compat_npc_addplayer.php';
 
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
@@ -732,6 +733,21 @@ PHP;
         } else {
             fwrite(STDERR, "ERROR: Missing expected NPC abilities block in $member.\n");
             exit(1);
+        }
+        // BedrockProtocol 64 adds ?PassengerOfBlockData between links and
+        // deviceId. Old NGEssentials PHARs may have 17 positional arguments;
+        // add the missing null without modifying already-correct 18-arg calls.
+        try {
+            $npcPatched = renetherPatchNpcAddPlayer($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($npcPatched !== $content) {
+            $updated[$member] = $npcPatched;
+            echo "[ReNether] Updated NPC AddPlayerPacket for 26.60: " . basename($member) . "\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / NPC AddPlayerPacket " . basename($member) . "\n";
         }
     }
     // Axolotl's PlayerListPacket (Bedrock 26.50) encodes mixed per-entry
