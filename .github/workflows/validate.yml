@@ -12,6 +12,7 @@ jobs:
           bash -n start.sh
           bash -n scripts/setup_zuri.sh
           python3 -m py_compile scripts/configure_nethernet.py
+          python3 -m py_compile scripts/prepare_axolotl_lock.py
           bash -n scripts/migrate_assets.sh
       - name: Python syntax
         run: |
