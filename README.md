@@ -8,6 +8,28 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ### Composer i opcache (26.60)
 
+Ako novi build ispisuje `Failed to download ... from dist: Could not authenticate
+against github.com`, ne treba novi GitHub token za ovaj javni core.
+`php_composer()` inače preuzima `GITHUB_TOKEN` ili token iz
+`/root/.config/bethergames/github-token`; fine-grained token koji nema
+pristup ovom javnom repozitoriju može uzrokovati HTTP 403. Sada core
+build ima **izolirani Composer home i prazni COMPOSER_AUTH**, a
+`scripts/prepare_axolotl_lock.py` mijenja **samo** arhivski URL zaključanog
+`axolotl-pm/bedrock-protocol` paketa na javni `codeload.github.com`.
+Verzija 64.0.0+bedrock-1.26.60 i SHA
+`f9d8b40da3940cef8242b0da34ba41fe49ea7364` ne mijenjaju se.
+Originalni upstream `composer.lock` čuva se u
+`composer.lock.renether-original` i može se vratiti pri rollbacku.
+Ovo uklanja potrebu za autentifikacijom pri tom preuzimanju, ali zahtijeva
+da VPS može pristupiti `codeload.github.com`.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+```
+
+
 Ako stariji starter javlja `GitDownloader.php`, `unable to read tree` ili
 `f9d8b40da3940cef8242b0da34ba41fe49ea7364 is gone`, problem je u
 Git checkoutu tog commita. Commit je potvrđeno dostupan na GitHubu, ali
