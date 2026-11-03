@@ -406,6 +406,25 @@ fi
 ' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_add_actor.php" ||
   die "NGEssentials BossBar AddActorPacket 26.60 compatibility guard failed."
 
+# Verify the exact NGEssentials PHAR loaded at runtime contains the
+# 8-argument synthetic LevelChunkPacket used for dimension transfers.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $member = "src/NetherGames/NGEssentials/player/NGPlayer.php";
+  if (!isset($phar[$member])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing NGPlayer in PHAR\n");
+    exit(1);
+  }
+  $source = $phar[$member]->getContent();
+  if (renetherPatchDimensionLevelChunk($source) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: NGPlayer still uses an outdated LevelChunkPacket call\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified 26.60 LevelChunkPacket dimension-transfer arguments\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_level_chunk_26_60.php" ||
+  die "NGEssentials LevelChunkPacket compatibility check failed."
+
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
 bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
