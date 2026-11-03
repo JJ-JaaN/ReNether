@@ -6,6 +6,28 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### NGEssentials crash: libReplay ZstdCompressor (26.60)
+
+Ako `NGEssentials v2.42` padne s porukom
+`ZstdCompressor ... must ... implement ... Compressor::getNetworkType`,
+uzrok je stara libReplay klasa u prethodno izgrađenom plugin PHAR-u.
+`scripts/patch_plugin_phars.php` sada preko `scripts/compat_libreplay.php`
+dodaje metodu iz aktualnog libReplay API-ja i zadržava postojeću
+ZSTD replay kompresiju. Postojeći plugin PHAR se zakrpa pri svakom
+`start.sh` pokretanju bez `NG_REBUILD=1` i bez mijenjanja svjetova.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+Metoda vraća `CompressionAlgorithm::ZLIB`, kao trenutačni upstream
+`ZstdCompressor`. Taj adapter nije namijenjen uporabi ZSTD algoritma
+za Bedrock mrežne pakete. Uspješno učitavanje NGEssentials ne znači
+da su mrežni prijenos, login i BedWars u cijelosti testirani.
+
 ### Composer i opcache (26.60)
 
 Ako novi build ispisuje `Failed to download ... from dist: Could not authenticate
