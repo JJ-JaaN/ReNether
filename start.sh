@@ -89,7 +89,15 @@ fi
 EXT_DIR="$(find "$PHP_HOME/bin/php7/lib/php/extensions" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)"
 [[ -n "$EXT_DIR" ]] || die "PHP extensions directory not found"
 find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E "s|^[[:space:]]*extension_dir[[:space:]]*=.*|extension_dir=\"$EXT_DIR\"|" {} +
-[[ -f "$EXT_DIR/opcache.so" ]] || find "$PHP_HOME/bin" -name '*.ini' -exec sed -i -E 's/^[[:space:]]*zend_extension.*opcache.*/;zend_extension=opcache.so/' {} +
+# PHP-Binaries' packaged INI may retain the GitHub Actions build-host opcache path.
+# Rewrite only the opcache loader, leaving other Zend extensions unchanged.
+if [[ -f "$EXT_DIR/opcache.so" ]]; then
+  find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E \
+    "s|^[[:space:]]*zend_extension[[:space:]]*=.*opcache\\.so.*$|zend_extension=\\\"$EXT_DIR/opcache.so\\\"|" {} +
+else
+  find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E \
+    's|^[[:space:]]*zend_extension[[:space:]]*=.*opcache\\.so.*$|;zend_extension=opcache.so|' {} +
+fi
 [[ -f "$EXT_DIR/ext_quiche.so" ]] || find "$PHP_HOME/bin" -name '*.ini' -exec sed -i -E 's/^[[:space:]]*extension.*ext_quiche.*/;extension=ext_quiche.so/' {} +
 "$PHP" -v
 "$PHP" -m | grep -iqx 'webrtc' ||
@@ -117,7 +125,7 @@ if [[ "$SOCCER_ENABLED" == 1 ]]; then
 else
   git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Skywars
 fi
-python3 "$ROOT/scripts/apply_compat.py" $AXOLOTL_SOURCE
+python3 "$ROOT/scripts/apply_compat.py" "$AXOLOTL_SOURCE"
 if [[ "$GAME" == Bedwars && "$SKYWARS_ENABLED" == 1 ]]; then
   bash "$ROOT/scripts/migrate_skywars_assets.sh" "$SOURCES/assets" "$DATA"
 fi
@@ -187,8 +195,8 @@ if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || ! -s "$DA
   log "Preparing ReNether Bedrock server plugins (experimental, may fail)"
   if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || "${NG_REBUILD:-0}" == 1 ]]; then
     (
-      cd $AXOLOTL_SOURCE
-      php_composer install --prefer-source --no-dev --classmap-authoritative --no-interaction --no-progress
+      cd "$AXOLOTL_SOURCE"
+      php_composer install --prefer-dist --no-dev --classmap-authoritative --no-interaction --no-progress --no-plugins
       "$PHP" -dphar.readonly=0 build/server-phar.php --git "$(git rev-parse HEAD)"
       if [[ -s "$DATA/PocketMine-MP.phar" && ! -f "$CORE_VERSION_STAMP" ]]; then
         cp -p "$DATA/PocketMine-MP.phar" "$DATA/PocketMine-MP.pre-$AXOLOTL_VERSION.phar"
