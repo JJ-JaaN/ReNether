@@ -1,8 +1,254 @@
 # ReNether
 
-ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen na **Axolotl-PM 5.49.1**, protokol Bedrock **2193 / 26.50**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
+ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen na **Axolotl-PM 5.51.1**, protokol Bedrock **26.60**, **bez Dockera**. Pokretanje koristi jedan ulazni skript: `./start.sh`. Originalni **NetherGames Network Hub** i **ArcadeLobby** (iz `Lobby/worlds/`) te sve BedWars arene i waiting lobby preuzimaju se iz [NetherGamesMC/assets](https://github.com/NetherGamesMC/assets). Zadani svijet `Hub` dolazi iz službenih Lobby mapa, a BedWars čuva vlastiti `WaitingLobby` predložak. Već postojeće datoteke ne prepisuju se bez eksplicitne remigracije.
 
 **Licence i prava:** Ovaj [GitHub repozitorij](https://github.com/JJ-JaaN/ReNether) je **javan**. [ATTRIBUTION.md](ATTRIBUTION.md) navodi izvorne autore, a [LEGAL_COMPLIANCE.md](LEGAL_COMPLIANCE.md) dokumentira uvjete, obveze prema mrežnim korisnicima i još neriješeno neslaganje između AGPL licence i vlasničkih zaglavlja dijela NetherGames pluginova. Javnost repozitorija nije automatska potvrda da je dostupan sav odgovarajući izvorni kod pokrenute verzije. **Ne smatrati projekt potpuno pravno usklađenim dok se to ne razjasni.**
+
+## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
+
+### BedWars sublobby crash: 26.60 `LevelChunkPacket::create()` requires 8 arguments
+
+A player can log in and remain in the Hub, but loading `BWSublobby2024`
+may crash with `LevelChunkPacket::create(): 7 passed, exactly 8 expected`.
+BedrockProtocol 64 adds the `clientBiomeUpdate` boolean as the eighth
+argument to the synthetic empty-chunk packet sent by
+`NGPlayer::sendDimension()`. This should be `false` for that synthetic
+chunk, keeping the original chunk data and all saved worlds unchanged.
+
+`scripts/compat_level_chunk_26_60.php` converts the archived 6-argument
+and previously patched 7-argument calls directly to the correct 8-argument
+version, or leaves an already-correct call unchanged. The patcher runs on
+the existing `NGEssentials.phar`, and `start.sh` validates the actual
+PHAR before starting.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+After logging in, verify that the BedWars queue successfully loads
+`BWSublobby2024` and eventually an arena without a PHP exception.
+This is a protocol-compatibility fix, not a guarantee that subsequent
+arena gameplay is already functional.
+
+### BossBar crash: 26.60 `AddActorPacket::create()` requires 14 arguments
+
+When `RapidPoodleLDR` has joined the Hub and NGEssentials creates the
+slime-backed bossbar, a stale `NGEssentials.phar` may crash with
+`Too few arguments to function AddActorPacket::create(), 13 passed, exactly 14 expected`.
+BedrockProtocol 64 adds `?PassengerOfBlockData $passengerBlockData`
+as the 14th argument (typically `null` for a simple bossbar).
+
+`scripts/compat_add_actor.php` counts PHP argument tokens rather than
+using a regex that could confuse nested calls. It appends `null` only
+to 13-argument calls, retains already-correct 14-argument calls and
+rejects unknown shapes. The built-PHAR patcher checks BossBar and known
+NGEssentials custom actors, cosmetics and pets. `start.sh` also
+verifies the actual BossBar PHAR entry before launching.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+### PlayerAuthInput crash: `InputMode` enum vs. legacy integer (Bedrock 26.60)
+
+If a connected player triggers
+`PlayerInputChangeEvent::__construct(): Argument #3 ($newInputMode) must be of type int, InputMode given`,
+the previously built `NGEssentials.phar` still expects numeric input modes.
+BedrockProtocol 64's `PlayerAuthInputPacket::getInputMode()` now
+returns the backed `InputMode` enum.
+
+`scripts/compat_input_mode.php` inspects `NGPlayer.php` and
+`PlayerInputChangeEvent.php` **inside the PHAR**. For an older
+integer-typed pair, the patcher reads `$packet->getInputMode()->value`
+so the event receives a number and avoids firing a false change event
+on every movement packet. For an already enum-typed pair it preserves
+the source unchanged. Unknown/mismatched type combinations abort the
+patch, rather than silently breaking event listeners. `start.sh`
+also checks the patched runtime PHAR before players connect.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+### NPC spawn crash: AddPlayerPacket::create() passengerBlockData (Bedrock 26.60)
+
+If the player successfully logs into `S-Lobby-2022` but NGEssentials
+crashes spawning a Hub NPC with
+`AddPlayerPacket::create(): Argument #16 ($passengerBlockData) must be of type ?PassengerOfBlockData, string given`,
+the already built NGEssentials PHAR uses the old 17-argument ABI.
+BedrockProtocol 64 expects 18 arguments: links, **passengerBlockData**,
+deviceId, buildPlatform at positions 15-18.
+
+`scripts/compat_npc_addplayer.php` checks both
+`CustomHuman.php` and `CustomGeometryTrait.php`. It inserts the
+missing `null` for passengerBlockData into legacy packet calls, but
+preserves already-correct new packet calls. The existing plugin PHAR
+patcher applies this without requiring a Composer rebuild. The launcher
+also validates both files inside the actual PHAR before starting.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+After a successful login, test all 19 Hub NPCs, their visible skins
+and nameplates, interaction, and BedWars match join before enabling Zuri.
+
+### NGEssentials crash: missing `Grpc\\Call` on the first server tick
+
+After `Done (1.603s)!`, older NGEssentials schedules
+`Grpc\\Call::drainCompletionQueue(PHP_INT_MIN)` every tick.
+The Axolotl PHP 8.4 runtime may not include `ext-grpc`, which leads to
+`Class "Grpc\\Call" not found` and shuts the server down.
+
+`scripts/compat_optional_grpc.php` keeps the completion-queue task if
+`Grpc\\Call::drainCompletionQueue` is available, otherwise logs a warning
+and skips only that task. No gRPC class emulation is used. The starter now
+verifies the updated guard, replay bootstrap check, and compressor method
+inside the **actual** `NGEssentials.phar` before running the server.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+This patch does not guarantee gRPC-dependent functionality. Re-enable the
+native gRPC extension when those features are needed; test BedWars login,
+matches and the shop separately.
+
+### NGEssentials crash: libReplay ZstdCompressor (26.60)
+**Sljedeći mogući crash** nakon metode `getNetworkType()`:
+`Undefined constant "ZSTD_COMPRESS_LEVEL_DEFAULT"` iz `SingletonTrait`.
+To znači da instancirani libReplay očekuje PHP `ext-zstd`, koja
+nije dostupna ili nije učitana u pokrenutom PHP-u.
+
+`scripts/compat_replay_zstd.php` sada mijenja samo uvjet za
+`new Replays(...)` u NGEssentials `Enforcement`. Ako PHP nema
+`ZSTD_COMPRESS_LEVEL_DEFAULT`, `zstd_compress()` ili
+`zstd_uncompress()`, logira upozorenje i **ne uključuje replay
+recording**; BedWars i ostale funkcije nastavljaju s bootom.
+Ne mijenja format snimki niti briše postojeće replay podatke.
+Ako je ekstenzija prisutna, postojeći recorder ostaje uključen.
+**Replay Cinema i snimanje neće raditi bez native ZSTD podrške.**
+
+Provjera istim PHP interpreterom kojim radi server:
+
+```bash
+cd ~/new-ng
+.runtime/php-axolotl-5.51.1/bin/php7/bin/php -r '
+var_dump(extension_loaded("zstd"),
+         defined("ZSTD_COMPRESS_LEVEL_DEFAULT"),
+         function_exists("zstd_compress"),
+         function_exists("zstd_uncompress"));
+'
+```
+
+Da bi replays stvarno radili, treba izgraditi/instalirati
+kompatibilan `ext-zstd` za Axolotlov PHP 8.4 ZTS runtime, a zatim
+ponovno testirati replay workflow. Nemoj `zstd_compress` zamjenjivati
+sa `gzcompress` jer bi postojeći i novi replay paketi mogli postati
+nekompatibilni.
+
+
+Ako `NGEssentials v2.42` padne s porukom
+`ZstdCompressor ... must ... implement ... Compressor::getNetworkType`,
+uzrok je stara libReplay klasa u prethodno izgrađenom plugin PHAR-u.
+`scripts/patch_plugin_phars.php` sada preko `scripts/compat_libreplay.php`
+dodaje metodu iz aktualnog libReplay API-ja i zadržava postojeću
+ZSTD replay kompresiju. Postojeći plugin PHAR se zakrpa pri svakom
+`start.sh` pokretanju bez `NG_REBUILD=1` i bez mijenjanja svjetova.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+Metoda vraća `CompressionAlgorithm::ZLIB`, kao trenutačni upstream
+`ZstdCompressor`. Taj adapter nije namijenjen uporabi ZSTD algoritma
+za Bedrock mrežne pakete. Uspješno učitavanje NGEssentials ne znači
+da su mrežni prijenos, login i BedWars u cijelosti testirani.
+
+### Composer i opcache (26.60)
+
+Ako novi build ispisuje `Failed to download ... from dist: Could not authenticate
+against github.com`, ne treba novi GitHub token za ovaj javni core.
+`php_composer()` inače preuzima `GITHUB_TOKEN` ili token iz
+`/root/.config/bethergames/github-token`; fine-grained token koji nema
+pristup ovom javnom repozitoriju može uzrokovati HTTP 403. Sada core
+build ima **izolirani Composer home i prazni COMPOSER_AUTH**, a
+`scripts/prepare_axolotl_lock.py` mijenja **samo** arhivski URL zaključanog
+`axolotl-pm/bedrock-protocol` paketa na javni `codeload.github.com`.
+Verzija 64.0.0+bedrock-1.26.60 i SHA
+`f9d8b40da3940cef8242b0da34ba41fe49ea7364` ne mijenjaju se.
+Originalni upstream `composer.lock` čuva se u
+`composer.lock.renether-original` i može se vratiti pri rollbacku.
+Ovo uklanja potrebu za autentifikacijom pri tom preuzimanju, ali zahtijeva
+da VPS može pristupiti `codeload.github.com`.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+```
+
+
+Ako stariji starter javlja `GitDownloader.php`, `unable to read tree` ili
+`f9d8b40da3940cef8242b0da34ba41fe49ea7364 is gone`, problem je u
+Git checkoutu tog commita. Commit je potvrđeno dostupan na GitHubu, ali
+lokalni Git/Composer cache može biti nepotpun. Starter sada koristi
+`composer install --prefer-dist` uz originalni `composer.lock`,
+umjesto `--prefer-source`; **nemoj** prvo pokretati `composer update`.
+
+Starter popravlja stari apsolutni `opcache.so` build-host put
+(`/home/runner/work/PHP-Binaries/...`) u instaliranom PHP INI-ju.
+Upozorenje `Composer plugins have been disabled ... root` zasebno je
+od Composerova sigurnosnog režima; core instalacija eksplicitno koristi
+`--no-plugins`. Dugoročno pokreći server kao namjenski neprivilegirani
+Linux korisnik, ne kao root.
+
+Da primijeniš popravak na migracijskoj grani:
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+```
+
+
+**Migracijska grana za testiranje**: `feat/bedrock-26-60-axolotl-5-51-1`. To nije potvrda da originalni NetherGames pluginovi rade bez greške na novom protokolu. Migracija je izdvojena u PR prije spajanja na `main`.
+
+- Starter klonira izvorni `5.51.1` tag (provjereni commit `e881fc1`) u novi `upstream/axolotl-5.51.1/` i **ponovno gradi core** pri prvom pokretanju na novoj verziji. Staru 5.49.1 radnu kopiju ne resetira.
+- PHP 8.4 PM5 dolazi iz Axolotl-PM PHP-Binaries releasea s provjerom SHA-256; prekida pokretanje ako nedostaje `webrtc` ekstenzija. Ne koristi zastarjeli NetherGames PHP runtime.
+- `scripts/configure_nethernet.py` uključuje `transport.name: nethernet` i za nove konfiguracije postavlja `ice-udp-mux: true` te `port-range: [PORT, PORT]`. Postojeća eksplicitna ICE/UDP podešenja i `key-file` se čuvaju. Stari `pocketmine.yml` se sprema jednom u `pocketmine.yml.pre-26.60.bak`.
+- `server-port` je TCP signaling port (zadano 19133 za BedWars), a uz zadane ICE postavke i **isti UDP port**. Otvori **TCP 19133 i UDP 19133** u firewallu. Ako si ručno ranije postavio ICE portove, otvori upravo njih.
+- Prije zamjene corea stari `PocketMine-MP.phar` se čuva kao `PocketMine-MP.pre-5.51.1.phar`. Skripta ne briše mape, bazu, `plugin_data`, niti `nethernet.key`. Svejedno napravi zasebnu sigurnosnu kopiju `.runtime/` i MariaDB baze prije prvog testiranja.
+
+Provjera na odvojenoj instanci, nakon sigurnosne kopije:
+
+```bash
+cd ~/new-ng
+git fetch origin
+git switch feat/bedrock-26-60-axolotl-5-51-1
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+**Važno:** `NG_BUILD_ONLY=1` i CI provjeravaju build/sintaksu, ne dokazujу da se Bedrock 26.60 klijent spojio ili da BedWars meč radi. Provjeri login, NPC-ove, arene, trgovinu, teleport, TNT/fireball, SkyWars i false positive ZuriAC prije produkcije. Za downgrade vrati stari commit/sklop i backup, nemoj brisati podatke ili postojeći `nethernet.key`.
 
 ## ZuriAC (eksperimentalni anti-cheat)
 
@@ -10,7 +256,7 @@ ReNether sada podržava **Zuri 1.4.2-BETA** iz izvornog repozitorija
 [ReinfyTeam/Zuri](https://github.com/ReinfyTeam/Zuri), zaključan na commit
 `ed582c94695ffbeaf2559f1271ff9c664ee5619e`. Zuri se na prvom pokretanju
 gradi iz izvora pomoću Composera i Pharynxa. Koristi se lokalni PHP runtime
-koji već koristi Axolotl-PM 5.49.1. Ne preuzima se neprovjereni "latest" PHAR.
+koji koristi Axolotl-PM 5.51.1. Ne preuzima se neprovjereni "latest" PHAR.
 
 - Pokretanje testnog anti-cheata: `NG_ENABLE_ZURI=1 ./start.sh`. Starter izrađuje
   `.runtime/data/plugins/Zuri.phar` i prvi put postavlja
@@ -126,7 +372,7 @@ normalno s `stop`, ponovno ga pokreni standardnim `./start.sh`
 i provjeri log oznake `resource-pack-free countdown` i
 `native BedWars upgrade form` ili poruke o njihovoj primjeni.
 
-**Status: eksperimentalno.** Originalni pluginovi i dalje mogu imati nekompatibilnosti s Axolotl-PM 5.49.1. Promjena imena ne mijenja unutarnje klase, izvorne licence ili API-je.
+**Status: eksperimentalno.** Originalni pluginovi i dalje mogu imati nekompatibilnosti s Axolotl-PM 5.51.1. Promjena imena ne mijenja unutarnje klase, izvorne licence ili API-je.
 
 ## Ubuntu 24.04+ (odvojeni testni server)
 
@@ -137,7 +383,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-`start.sh` tijekom prvog pokretanja instalira potrebne Ubuntu pakete kada ima administratorske dozvole, priprema lokalnu MariaDB, preuzima PHP runtime, Composer i DevTools, klonira Axolotl, NetherGames plugin source i Lobby + BedWars world assete, pokušava složiti `.phar` datoteke te pokreće poslužitelj na **UDP 19133**. To je razvojni pokušaj i može stati zbog stvarnih API nekompatibilnosti; u tom slučaju ispisat će grešku umjesto lažne poruke o uspjehu.
+`start.sh` tijekom prvog pokretanja instalira potrebne Ubuntu pakete kada ima administratorske dozvole, priprema lokalnu MariaDB, preuzima PHP runtime, Composer i DevTools, klonira Axolotl, NetherGames plugin source i Lobby + BedWars world assete, pokušava složiti `.phar` datoteke te pokreće poslužitelj s **TCP 19133 signalingom i UDP 19133 ICE prometom**. To je razvojni pokušaj i može stati zbog stvarnih API nekompatibilnosti; u tom slučaju ispisat će grešku umjesto lažne poruke o uspjehu.
 
 Za korištenje porta 19132 nakon gašenja starog poslužitelja: `NG_PORT=19132 ./start.sh`. Za novi build: `NG_REBUILD=1 ./start.sh`. Za build bez pokretanja: `NG_BUILD_ONLY=1 ./start.sh`.
 
@@ -150,7 +396,7 @@ Podatci su u `.runtime/data/`, uključujući konfiguracije i bazu lokalne MariaD
 
 ## BedWars + SkyWars na jednom portu (eksperimentalno)
 
-Za zajednički **UDP 19132** i isti Hub koristi se **jedna** Axolotl-PM
+Za zajednički **TCP + UDP 19132** i isti Hub koristi se **jedna** Axolotl-PM
 instanca koja opcionalno učitava oba plugina. SkyWars podaci spremaju se
 odvojeno u `plugin_data/xSkywars`, a BedWars ostaje u
 `plugin_data/xBedwars`. Mape su originalne iz izvornog CC BY 4.0
@@ -185,7 +431,7 @@ SkyWars koristi originalni `NetherGamesMC/plugins/Skywars` (`xSkywars`)
 te CC BY 4.0 karte iz `NetherGamesMC/assets/Skywars`. Prvi pokušaj
 izoliran je od BedWarsa: zasebna mapa podataka
 `.runtime/skywars/data/`, vlastiti svjetovi, konfiguracija i `xSkywars.phar`,
-zadani **UDP 19134**. Postojeći BedWars ostaje na svojem portu
+zadani **TCP + UDP 19134**. Postojeći BedWars ostaje na svojem portu
 (primjerice 19132). Soccer ostaje isključen.
 
 Prije pokretanja provjeri dopuštenja za uporabu izvornog SkyWars
@@ -206,7 +452,7 @@ NG_GAME=Skywars NG_PORT=19134 bash ./start.sh 2>&1 | tee skywars.log
 Kada je server pokrenut, odvoji tmux pomoću `Ctrl+B`, zatim `D`.
 Nakon toga pregledaj `skywars.log`, osobito greške pri učitavanju
 plugina i mapa. Nije potvrđeno da će originalni xSkywars raditi bez
-dodatnih kompatibilnosnih popravaka na Axolotl-PM 5.49.1.
+dodatnih kompatibilnosnih popravaka na Axolotl-PM 5.51.1.
 
 SkyWars **nije ugrađen kao NPC u glavni Hub**; zasad se spaja zasebno
 na port 19134. Ne pokretati `NG_REMIGRATE_ASSETS=1` na tom profilu,
@@ -247,21 +493,18 @@ git pull --ff-only
 NG_ENABLE_SOCCER=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-branding.log
 ```
 
-Provjeri da log sadrži `Configured server.properties MOTD: motd=ReNether`, `Configured listening port: server-port=19133`, `Verified MOTD/brand in built PHARs` i `Bedrock RakNet advertised name: ReNether`. Ako neki od tih zapisa nedostaje, novi proces možda nije uspješno pokrenut.
+Provjeri da log sadrži `Configured server.properties MOTD: motd=ReNether`, `Configured listening port: server-port=19133`, `Verified MOTD/brand in built PHARs` i `Bedrock advertised name: ReNether`. Ako neki od tih zapisa nedostaje, novi proces možda nije uspješno pokrenut.
 
-Provjeri **stvarni UDP ping odgovor** lokalno na VPS-u:
-
-```bash
-cd ~/new-ng
-python3 scripts/check_bedrock_motd.py 19132 19133
-sudo ss -lunp | grep -E ':(19132|19133)'
-```
-
-Očekivano: `UDP 19133: ADVERTISED='ReNether'` (može sadržavati Minecraft boje), dok 19132 ne odgovara ili prikazuje drugi server. `NG NG Bedwars` na 19132 znači da se Minecraft vjerojatno spaja na stari port. Ako ga prikazuje 19133, usporedi PID iz `ss` s novo pokrenutim procesom; ne briši `server.lock` ni svjetove. U igri se ploče ažuriraju kad igrač učita njihove chunkove. Za provjeru stvarnog sadržaja `server.properties`:
+Provjeri **NetherNet signaling** (stari RakNet ping nije valjan test za Bedrock 26.60):
 
 ```bash
+curl -i http://127.0.0.1:19133/v1/join
+ss -ltnp | grep ':19133'
+ss -lunp | grep ':19133'
 grep '^motd=' ~/new-ng/.runtime/data/server.properties
 ```
+
+Ne očekuj RakNet MOTD odgovor iz `scripts/check_bedrock_motd.py` za 26.60. Ako koristiš HTTP bez TLS-a, Bedrock može prikazati upozorenje o povjerenju u ključ pri prvom ulasku. Za javni server preporučen je HTTPS signaling. Ne briši `nethernet.key` ili postojeće svjetove.
 
 ## Ponovna migracija iz starog BedWars Hub-a
 

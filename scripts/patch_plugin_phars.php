@@ -26,6 +26,14 @@ if ($argc < 2) {
     exit(2);
 }
 
+require_once __DIR__ . '/compat_libreplay.php';
+require_once __DIR__ . '/compat_replay_zstd.php';
+require_once __DIR__ . '/compat_optional_grpc.php';
+require_once __DIR__ . '/compat_npc_addplayer.php';
+require_once __DIR__ . '/compat_input_mode.php';
+require_once __DIR__ . '/compat_add_actor.php';
+require_once __DIR__ . '/compat_level_chunk_26_60.php';
+
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
 $newSignature = 'addAdditionalSpawnData(CompoundTag $nbt): void';
@@ -359,6 +367,76 @@ PHP;
         fwrite(STDERR, "ERROR: Missing libVanilla MissingVanillaBlocks from NGEssentials PHAR.\n");
         exit(1);
     }
+    // Axolotl 5.51.1 adds Compressor::getNetworkType(). ReNether may reuse
+    // older NGEssentials.phar dependencies, whose libReplay ZstdCompressor
+    // lacks the method even when upstream libReplay now implements it.
+    // Patch the PHAR itself, not the downloaded source or player worlds.
+    $member = 'vendor/nethergamesmc/libreplay/session/utils/ZstdCompressor.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        try {
+            $patched = renetherPatchLegacyReplayCompressor($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Added libReplay Compressor::getNetworkType() in " . basename($path) . "\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / libReplay ZstdCompressor\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing libReplay ZstdCompressor in NGEssentials PHAR.\n");
+        exit(1);
+    }
+
+    // libReplay requires ext-zstd. The Axolotl PHP 8.4 runtime may not ship
+    // it, so skip only the replay-recorder bootstrap when native ZSTD is
+    // unavailable. Never invent a different on-disk compression format.
+    $member = 'src/NetherGames/NGEssentials/player/enforcement/Enforcement.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        try {
+            $patched = renetherPatchReplayBootstrap($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Guarded libReplay initialization against missing ext-zstd in " . basename($path) . "\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / replay ZSTD runtime check\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGEssentials enforcement replay bootstrap.\n");
+        exit(1);
+    }
+
+    // NGEssentials schedules Grpc\\Call::drainCompletionQueue() every tick.
+    // The Axolotl PHP binary may not ship ext-grpc. Guard that optional
+    // task while preserving behavior if gRPC is installed.
+    $member = 'src/NetherGames/NGEssentials/NGEssentials.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        try {
+            $patched = renetherPatchOptionalGrpcDrain($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\\n");
+            exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Guarded optional gRPC queue task in " . basename($path) . "\\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / optional gRPC queue task\\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGEssentials main entry for gRPC compatibility.\\n");
+        exit(1);
+    }
+
     // NetherGames BedrockProtocol passes an explicit protocol ID to
     // DataPacket::decodePayload()/encodePayload(). Axolotl's DataPacket
     // doesn't, and these two libReplay packet implementations do not use it.
@@ -582,40 +660,23 @@ PHP;
         exit(1);
     }
 
-    // Bedrock 26.50 requires a nullable subchunk-request limit followed by
-    // cacheEnabled and an array of blob hashes (seven arguments total).
-    // The NetherGames empty-chunk packet used the previous six-argument ABI.
+    // BedrockProtocol 64 (26.60) requires a final clientBiomeUpdate bool
+    // after the chunk bytes. Patch legacy 6- and 7-argument calls in the
+    // synthetic empty-chunk transfer helper, preserving existing worlds.
     $member = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
     if (isset($phar[$member])) {
         $content = $updated[$member] ?? $phar[$member]->getContent();
-        $before = <<<'PHP'
-                    $session->sendDataPacket(LevelChunkPacket::create(
-                        new ChunkPosition($X, $Z),
-                        $dimensionId,
-                        $subChunkCount,
-                        false,
-                        null,
-                        $emptyChunk
-                    ));
-PHP;
-        $after = <<<'PHP'
-                    $session->sendDataPacket(LevelChunkPacket::create(
-                        new ChunkPosition($X, $Z),
-                        $dimensionId,
-                        $subChunkCount,
-                        null,
-                        false,
-                        [],
-                        $emptyChunk
-                    ));
-PHP;
-        if (str_contains($content, $after)) {
-            echo "[ReNether] Already compatible: " . basename($path) . " / LevelChunkPacket arguments\n";
-        } elseif (substr_count($content, $before) === 1) {
-            $updated[$member] = str_replace($before, $after, $content);
-        } else {
-            fwrite(STDERR, "ERROR: Unexpected empty LevelChunkPacket in $member; refusing change.\n");
+        try {
+            $patched = renetherPatchDimensionLevelChunk($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
             exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Updated NGEssentials LevelChunkPacket to eight arguments for 26.60\n";
+        } else {
+            echo "[ReNether] Already compatible: NGEssentials LevelChunkPacket 26.60\n";
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGPlayer in NGEssentials PHAR.\n");
@@ -659,7 +720,86 @@ PHP;
             fwrite(STDERR, "ERROR: Missing expected NPC abilities block in $member.\n");
             exit(1);
         }
+        // BedrockProtocol 64 adds ?PassengerOfBlockData between links and
+        // deviceId. Old NGEssentials PHARs may have 17 positional arguments;
+        // add the missing null without modifying already-correct 18-arg calls.
+        try {
+            $npcPatched = renetherPatchNpcAddPlayer($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($npcPatched !== $content) {
+            $updated[$member] = $npcPatched;
+            echo "[ReNether] Updated NPC AddPlayerPacket for 26.60: " . basename($member) . "\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / NPC AddPlayerPacket " . basename($member) . "\n";
+        }
     }
+    // BedrockProtocol 64 returns the InputMode backed enum rather than
+    // the integer expected by older NGEssentials PlayerInputChangeEvent.
+    // Verify the PHAR's event and player field agree, then convert only the
+    // legacy numeric case; the newer enum-typed variant needs no changes.
+    if (basename($path) === 'NGEssentials.phar') {
+        $playerMember = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
+        $eventMember = 'src/NetherGames/NGEssentials/events/PlayerInputChangeEvent.php';
+        if (!isset($phar[$playerMember]) || !isset($phar[$eventMember])) {
+            fwrite(STDERR, "ERROR: Missing NGEssentials input-mode event/player classes.\n");
+            exit(1);
+        }
+        $playerSource = $updated[$playerMember] ?? $phar[$playerMember]->getContent();
+        $eventSource = $updated[$eventMember] ?? $phar[$eventMember]->getContent();
+        try {
+            $patched = renetherPatchLegacyInputMode($playerSource, $eventSource);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: NGEssentials InputMode: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($patched !== $playerSource) {
+            $updated[$playerMember] = $patched;
+            echo "[ReNether] Updated legacy InputMode enum->int conversion in NGPlayer\n";
+        } else {
+            echo "[ReNether] Already compatible: NGEssentials input-mode event\n";
+        }
+    }
+
+    // BedrockProtocol 64 added PassengerOfBlockData as the final
+    // AddActorPacket argument. Adapt all known archived NGEssentials
+    // actor-spawning paths (BossBar plus custom entities/cosmetics).
+    if (basename($path) === 'NGEssentials.phar') {
+        foreach ([
+            'src/NetherGames/NGEssentials/entity/BossBar.php',
+            'src/NetherGames/NGEssentials/entity/custom/EntityNPC.php',
+            'src/NetherGames/NGEssentials/entity/custom/CustomFakeBlock.php',
+            'src/NetherGames/NGEssentials/entity/custom/CustomFakeMovingBlock.php',
+            'src/NetherGames/NGEssentials/entity/pets/RideableTrait.php',
+            'src/NetherGames/NGEssentials/player/cosmetics/utils/CageEntity.php',
+            'src/NetherGames/NGEssentials/player/cosmetics/types/effect/EffectCosmetic.php',
+            'src/NetherGames/NGEssentials/commands/TestCommand.php',
+        ] as $member) {
+            if (!isset($phar[$member])) {
+                if (str_ends_with($member, '/BossBar.php')) {
+                    fwrite(STDERR, "ERROR: Missing NGEssentials BossBar in PHAR.\n");
+                    exit(1);
+                }
+                continue;
+            }
+            $original = $updated[$member] ?? $phar[$member]->getContent();
+            try {
+                $patched = renetherPatchAddActorPacket($original);
+            } catch (Throwable $e) {
+                fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+                exit(1);
+            }
+            if ($patched !== $original) {
+                $updated[$member] = $patched;
+                echo "[ReNether] Updated AddActorPacket 26.60 arguments in " . basename($member) . "\n";
+            } else {
+                echo "[ReNether] Already compatible: AddActorPacket " . basename($member) . "\n";
+            }
+        }
+    }
+
     // Axolotl's PlayerListPacket (Bedrock 26.50) encodes mixed per-entry
     // add/remove types via ::create(array $entries). NetherGames' older
     // ::add()/::remove() wrappers no longer exist. Removal entries must

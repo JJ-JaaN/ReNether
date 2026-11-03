@@ -22,10 +22,10 @@ final class Main extends PluginBase implements Listener{
 
     protected function onEnable(): void{
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-        // This is the string actually sent in RakNet unconnected ping replies.
+        // Set the public server name for the active Bedrock transport.
         // NGEssentials also calls Network::setName(), so run after it.
         $this->getServer()->getNetwork()->setName("ReNether");
-        $this->getLogger()->info("Bedrock RakNet advertised name: " . $this->getServer()->getNetwork()->getName());
+        $this->getLogger()->info("Bedrock advertised name: " . $this->getServer()->getNetwork()->getName());
 
         $scanned = 0;
         foreach($this->getServer()->getWorldManager()->getWorlds() as $world){

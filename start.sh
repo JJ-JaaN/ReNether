@@ -38,8 +38,12 @@ case "$GAME" in
     exit 2
     ;;
 esac
-PHP_HOME="$STATE/php"
+AXOLOTL_VERSION="5.51.1"
+AXOLOTL_REV="e881fc1bc1c401545baf6bd1f824e41ff3f57bd1"
+AXOLOTL_SOURCE="$SOURCES/axolotl-$AXOLOTL_VERSION"
+PHP_HOME="$STATE/php-axolotl-$AXOLOTL_VERSION"
 PHP="$PHP_HOME/bin/php7/bin/php"
+CORE_VERSION_STAMP="$DATA/.renether-core-$AXOLOTL_VERSION"
 COMPOSER_PHAR="$CACHE/composer.phar"
 DEVTOOLS="$CACHE/DevTools.phar"
 PORT="${NG_PORT:-$DEFAULT_PORT}"
@@ -75,21 +79,37 @@ if [[ ! -f "$STATE/dependencies-installed" ]]; then
 fi
 
 if [[ ! -x "$PHP" ]]; then
-  log "Downloading PHP 8.4 PM5 runtime"
-  curl -fL --retry 3 -o "$CACHE/php.tar.gz" https://github.com/NetherGamesMC/php-build-scripts/releases/download/pm5-php-8.4-latest/PHP-8.4-Linux-x86_64-PM5.tar.gz
-  tar -xzf "$CACHE/php.tar.gz" -C "$PHP_HOME"
+  log "Downloading verified Axolotl-PM PHP 8.4 runtime (NetherNet/WebRTC)"
+  PHP_ARCHIVE="$CACHE/php-8.4-axolotl-pm5.tar.gz"
+  curl -fL --retry 3 -o "$PHP_ARCHIVE" https://github.com/axolotl-pm/PHP-Binaries/releases/download/pm5-php-8.4-latest/PHP-8.4-Linux-x86_64-PM5.tar.gz
+  echo "a045628155bb2dc336f33e4669b3660278711e066aec48133450347ff25ab955  $PHP_ARCHIVE" | sha256sum -c - ||
+    die "Axolotl PHP archive integrity check failed"
+  tar -xzf "$PHP_ARCHIVE" -C "$PHP_HOME"
 fi
 EXT_DIR="$(find "$PHP_HOME/bin/php7/lib/php/extensions" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)"
 [[ -n "$EXT_DIR" ]] || die "PHP extensions directory not found"
 find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E "s|^[[:space:]]*extension_dir[[:space:]]*=.*|extension_dir=\"$EXT_DIR\"|" {} +
-[[ -f "$EXT_DIR/opcache.so" ]] || find "$PHP_HOME/bin" -name '*.ini' -exec sed -i -E 's/^[[:space:]]*zend_extension.*opcache.*/;zend_extension=opcache.so/' {} +
+# PHP-Binaries' packaged INI may retain the GitHub Actions build-host opcache path.
+# Rewrite only the opcache loader, leaving other Zend extensions unchanged.
+if [[ -f "$EXT_DIR/opcache.so" ]]; then
+  find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E \
+    "s|^[[:space:]]*zend_extension[[:space:]]*=.*opcache\\.so.*$|zend_extension=\\\"$EXT_DIR/opcache.so\\\"|" {} +
+else
+  find "$PHP_HOME/bin" -name '*.ini' -type f -exec sed -i -E \
+    's|^[[:space:]]*zend_extension[[:space:]]*=.*opcache\\.so.*$|;zend_extension=opcache.so|' {} +
+fi
 [[ -f "$EXT_DIR/ext_quiche.so" ]] || find "$PHP_HOME/bin" -name '*.ini' -exec sed -i -E 's/^[[:space:]]*extension.*ext_quiche.*/;extension=ext_quiche.so/' {} +
 "$PHP" -v
+"$PHP" -m | grep -iqx 'webrtc' ||
+  die "PHP ext-webrtc missing; 26.60 clients cannot connect over NetherNet. Check Axolotl PHP runtime."
 
-if [[ ! -d "$SOURCES/axolotl/.git" ]]; then
-  log "Cloning Axolotl-PM 5.49.1"
-  git clone --depth 1 --branch 5.49.1 https://github.com/axolotl-pm/PocketMine-MP.git "$SOURCES/axolotl"
+# Versioned checkout avoids resetting locally compatibility-patched 5.49.1 sources.
+if [[ ! -d "$AXOLOTL_SOURCE/.git" ]]; then
+  log "Cloning Axolotl-PM $AXOLOTL_VERSION for Bedrock 26.60"
+  git clone --depth 1 --branch "$AXOLOTL_VERSION" https://github.com/axolotl-pm/PocketMine-MP.git "$AXOLOTL_SOURCE"
 fi
+[[ "$(git -C "$AXOLOTL_SOURCE" rev-parse HEAD)" == "$AXOLOTL_REV" ]] ||
+  die "Axolotl source revision differs from pinned $AXOLOTL_VERSION; refusing mismatched core"
 if [[ ! -d "$SOURCES/plugins/.git" ]]; then
   log "Cloning NetherGames plugin sources"
   git clone --depth 1 https://github.com/NetherGamesMC/plugins.git "$SOURCES/plugins"
@@ -105,7 +125,7 @@ if [[ "$SOCCER_ENABLED" == 1 ]]; then
 else
   git -C "$SOURCES/assets" sparse-checkout set Bedwars Lobby Skywars
 fi
-python3 "$ROOT/scripts/apply_compat.py" "$SOURCES/axolotl"
+python3 "$ROOT/scripts/apply_compat.py" "$AXOLOTL_SOURCE"
 if [[ "$GAME" == Bedwars && "$SKYWARS_ENABLED" == 1 ]]; then
   bash "$ROOT/scripts/migrate_skywars_assets.sh" "$SOURCES/assets" "$DATA"
 fi
@@ -140,6 +160,14 @@ if [[ ! -f "$DEVTOOLS" ]]; then
 fi
 
 php_composer(){
+  # Public Axolotl core dependencies need no GitHub token. A fine-grained
+  # PAT intended for another organization can make GitHub reject public zips.
+  # Isolate this one install from global Composer auth and user token files.
+  if [[ "${RN_PUBLIC_CORE_COMPOSER:-0}" == 1 ]]; then
+    mkdir -p "$CACHE/composer-public"
+    COMPOSER_HOME="$CACHE/composer-public" COMPOSER_AUTH='{}' "$PHP" "$COMPOSER_PHAR" "$@"
+    return
+  fi
   local token="${GITHUB_TOKEN:-}"
   if [[ -z "$token" && -r /root/.config/bethergames/github-token ]]; then
     token="$(cat /root/.config/bethergames/github-token)"
@@ -169,16 +197,22 @@ fi
 
 # Older starter builds succeeded despite producing plugin PHARs without Composer's autoloader.
 # Rebuild automatically if we detect one, even when NG_REBUILD was not explicitly requested.
-if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/$MINIGAME_PHAR" || "${NG_REBUILD:-0}" == 1 ]] ||
+if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || ! -s "$DATA/plugins/NGEssentials.phar" || ! -s "$DATA/plugins/$MINIGAME_PHAR" || "${NG_REBUILD:-0}" == 1 ]] ||
    ! phar_has_vendor "$DATA/plugins/NGEssentials.phar" ||
    ! phar_has_vendor "$DATA/plugins/$MINIGAME_PHAR"; then
   log "Preparing ReNether Bedrock server plugins (experimental, may fail)"
-  if [[ ! -s "$DATA/PocketMine-MP.phar" || "${NG_REBUILD:-0}" == 1 ]]; then
+  if [[ ! -s "$DATA/PocketMine-MP.phar" || ! -f "$CORE_VERSION_STAMP" || "${NG_REBUILD:-0}" == 1 ]]; then
     (
-      cd "$SOURCES/axolotl"
-      php_composer install --prefer-source --no-dev --classmap-authoritative --no-interaction --no-progress
+      cd "$AXOLOTL_SOURCE"
+      python3 "$ROOT/scripts/prepare_axolotl_lock.py" "$AXOLOTL_SOURCE/composer.lock"
+      RN_PUBLIC_CORE_COMPOSER=1 php_composer install --prefer-dist --no-dev --classmap-authoritative --no-interaction --no-progress --no-plugins
       "$PHP" -dphar.readonly=0 build/server-phar.php --git "$(git rev-parse HEAD)"
+      if [[ -s "$DATA/PocketMine-MP.phar" && ! -f "$CORE_VERSION_STAMP" ]]; then
+        cp -p "$DATA/PocketMine-MP.phar" "$DATA/PocketMine-MP.pre-$AXOLOTL_VERSION.phar"
+        log "Preserved previous core PHAR for rollback"
+      fi
       cp -f PocketMine-MP.phar "$DATA/PocketMine-MP.phar"
+      touch "$CORE_VERSION_STAMP"
     )
   fi
   for plugin in NGEssentials "$GAME"; do
@@ -281,13 +315,115 @@ fi
 
 # Refresh compatibility files in already-built PHARs without rebuilding Composer plugins.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/sync_core_phar.php" \
-  "$SOURCES/axolotl" "$DATA/PocketMine-MP.phar"
+  $AXOLOTL_SOURCE "$DATA/PocketMine-MP.phar"
 
 # Retrofit already built PHARs too; this does not force a Composer reinstall.
 # The patched methods do not use the former TypeConverter argument.
 "$PHP" -dphar.readonly=0 "$ROOT/scripts/patch_plugin_phars.php" \
   "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
   ${SOCCER_PHAR:+"$SOCCER_PHAR"} ${SKYWARS_PHAR:+"$SKYWARS_PHAR"}
+
+# Verify that the actual PHAR used on boot contains the compatibility guards.
+# This fails during bootstrap, not two seconds into the server tick loop.
+"$PHP" -r '
+  $p = new Phar($argv[1]);
+  foreach ([
+    "src/NetherGames/NGEssentials/NGEssentials.php" =>
+      "ReNether: PHP gRPC extension unavailable",
+    "src/NetherGames/NGEssentials/player/enforcement/Enforcement.php" =>
+      "ReNether: replay recording unavailable (PHP ext-zstd missing)",
+    "vendor/nethergamesmc/libreplay/session/utils/ZstdCompressor.php" =>
+      "function getNetworkType("
+  ] as $member => $required) {
+    if (!isset($p[$member]) || !str_contains($p[$member]->getContent(), $required)) {
+      fwrite(STDERR, "[ReNether] ERROR: NGEssentials PHAR missing compatibility marker: $member\n");
+      exit(1);
+    }
+  }
+  echo "[ReNether] Verified NGEssentials 26.60 replay/gRPC compatibility guards\n";
+' "$DATA/plugins/NGEssentials.phar" ||
+  die "Plugin PHAR compatibility check failed; refusing to start with stale NGEssentials."
+
+# Independently check the two NPC spawning paths against the 26.60
+# AddPlayerPacket signature. This protects production logins from type crashes.
+"$PHP" -r '
+  require $argv[2];
+  $p = new Phar($argv[1]);
+  foreach ([
+    "src/NetherGames/NGEssentials/entity/custom/CustomHuman.php",
+    "src/NetherGames/NGEssentials/entity/CustomGeometryTrait.php"
+  ] as $member) {
+    if (!isset($p[$member])) {
+      fwrite(STDERR, "[ReNether] ERROR: Missing NPC PHAR member $member\n");
+      exit(1);
+    }
+    $source = $p[$member]->getContent();
+    if (renetherPatchNpcAddPlayer($source) !== $source) {
+      fwrite(STDERR, "[ReNether] ERROR: NPC AddPlayerPacket still has old 17-arg ABI in $member\n");
+      exit(1);
+    }
+  }
+  echo "[ReNether] Verified NPC AddPlayerPacket 26.60 passengerBlockData arguments\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_npc_addplayer.php" ||
+  die "NGEssentials 26.60 NPC packet guard failed; refusing to boot."
+
+# Reject stale NGEssentials PHARs where the old int-typed input event is
+# still fed a BedrockProtocol 64 InputMode enum every movement packet.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $player = "src/NetherGames/NGEssentials/player/NGPlayer.php";
+  $event = "src/NetherGames/NGEssentials/events/PlayerInputChangeEvent.php";
+  if (!isset($phar[$player]) || !isset($phar[$event])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing input-mode PHAR members\n");
+    exit(1);
+  }
+  $source = $phar[$player]->getContent();
+  if (renetherPatchLegacyInputMode($source, $phar[$event]->getContent()) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: Input-mode PHAR still uses legacy packet ABI\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified NGEssentials InputMode event 26.60 compatibility\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_input_mode.php" ||
+  die "NGEssentials InputMode compatibility guard failed; refusing to boot."
+
+# Verify that the BossBar sent after login uses the 26.60
+# AddActorPacket::create() 14-argument signature, not the legacy 13.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $member = "src/NetherGames/NGEssentials/entity/BossBar.php";
+  if (!isset($phar[$member])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing NGEssentials BossBar PHAR member\n");
+    exit(1);
+  }
+  $source = $phar[$member]->getContent();
+  if (renetherPatchAddActorPacket($source) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: BossBar retains old 13-argument AddActorPacket ABI\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified BossBar AddActorPacket 26.60 argument count\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_add_actor.php" ||
+  die "NGEssentials BossBar AddActorPacket 26.60 compatibility guard failed."
+
+# Verify the exact NGEssentials PHAR loaded at runtime contains the
+# 8-argument synthetic LevelChunkPacket used for dimension transfers.
+"$PHP" -r '
+  require $argv[2];
+  $phar = new Phar($argv[1]);
+  $member = "src/NetherGames/NGEssentials/player/NGPlayer.php";
+  if (!isset($phar[$member])) {
+    fwrite(STDERR, "[ReNether] ERROR: Missing NGPlayer in PHAR\n");
+    exit(1);
+  }
+  $source = $phar[$member]->getContent();
+  if (renetherPatchDimensionLevelChunk($source) !== $source) {
+    fwrite(STDERR, "[ReNether] ERROR: NGPlayer still uses an outdated LevelChunkPacket call\n");
+    exit(1);
+  }
+  echo "[ReNether] Verified 26.60 LevelChunkPacket dimension-transfer arguments\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_level_chunk_26_60.php" ||
+  die "NGEssentials LevelChunkPacket compatibility check failed."
 
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
@@ -451,6 +587,7 @@ if [[ ! -f "$DATA/pocketmine.yml" ]]; then
   cp "$SOURCES/plugins/docker/Chunk_Ticking_pocketmine.yml" "$DATA/pocketmine.yml"
   sed -i -e 's/^  enable-encryption: false/  enable-encryption: true/' -e 's/^  enable-input: false/  enable-input: true/' "$DATA/pocketmine.yml"
 fi
+python3 "$ROOT/scripts/configure_nethernet.py" "$DATA/pocketmine.yml" "$PORT"
 if [[ ! -f "$DATA/plugin_data/NGEssentials/config.yml" ]]; then
   cp "$SOURCES/plugins/docker/ngessentials-config.yml" "$DATA/plugin_data/NGEssentials/config.yml"
   sed -i -e "s/__SERVER_TYPE__/$SERVER_TYPE/" -e 's/^developmentMode:.*/developmentMode: true/' "$DATA/plugin_data/NGEssentials/config.yml"
@@ -479,6 +616,6 @@ if command -v ss >/dev/null 2>&1; then
   log "Existing UDP listeners on 19132/19133:"
   ss -lunp 2>/dev/null | grep -E ':(19132|19133)([[:space:]]|$)' || true
 fi
-log "Starting ReNether $GAME on UDP $PORT (NO Docker)"
+log "Starting ReNether $GAME on TCP $PORT (NetherNet signaling; UDP ICE configured in pocketmine.yml)"
 cd "$DATA"
 exec "$PHP" ./PocketMine-MP.phar --no-wizard --disable-ansi

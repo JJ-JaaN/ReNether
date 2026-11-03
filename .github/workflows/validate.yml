@@ -11,12 +11,30 @@ jobs:
         run: |
           bash -n start.sh
           bash -n scripts/setup_zuri.sh
+          python3 -m py_compile scripts/configure_nethernet.py
+          python3 -m py_compile scripts/prepare_axolotl_lock.py
           bash -n scripts/migrate_assets.sh
       - name: Python syntax
-        run: python3 -m py_compile scripts/apply_compat.py
+        run: |
+          python3 -m py_compile scripts/apply_compat.py
+          python3 -m unittest discover -s tests -p 'test_*.py'
       - name: PHP syntax
         run: |
           php -l scripts/patch_plugin_phars.php
+          php -l scripts/compat_libreplay.php
+          php -l scripts/compat_replay_zstd.php
+          php -l scripts/compat_optional_grpc.php
+          php -l scripts/compat_npc_addplayer.php
+          php -l scripts/compat_input_mode.php
+          php -l scripts/compat_add_actor.php
+          php -l scripts/compat_level_chunk_26_60.php
+          php -l tests/level_chunk_26_60.php
+          php -l tests/add_actor_26_60.php
+          php -l tests/input_mode_26_60.php
+          php -l tests/npc_addplayer_26_60.php
+          php -l tests/optional_grpc.php
+          php -l tests/replay_zstd_fallback.php
+          php -l tests/libreplay_compressor.php
           php -l scripts/patch_zuri_phar.php
           php -l tests/zuri_speed_lobby.php
           php -l plugins/ReNetherHubPvP/src/renether/hubpvp/Main.php
@@ -25,5 +43,19 @@ jobs:
         run: php tests/hub_pvp.php
       - name: Zuri lobby Speed regression tests
         run: php -dphar.readonly=0 tests/zuri_speed_lobby.php
+      - name: libReplay 26.60 compressor compatibility tests
+        run: php tests/libreplay_compressor.php
+      - name: Missing ext-zstd replay fallback tests
+        run: php tests/replay_zstd_fallback.php
+      - name: Optional gRPC callback tests
+        run: php tests/optional_grpc.php
+      - name: Bedrock 26.60 NPC packet compatibility tests
+        run: php tests/npc_addplayer_26_60.php
+      - name: Bedrock 26.60 input-mode enum compatibility tests
+        run: php tests/input_mode_26_60.php
+      - name: Bedrock 26.60 AddActorPacket compatibility tests
+        run: php tests/add_actor_26_60.php
+      - name: Bedrock 26.60 world-transfer chunk compatibility tests
+        run: php tests/level_chunk_26_60.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
