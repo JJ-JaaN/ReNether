@@ -30,6 +30,7 @@ require_once __DIR__ . '/compat_libreplay.php';
 require_once __DIR__ . '/compat_replay_zstd.php';
 require_once __DIR__ . '/compat_optional_grpc.php';
 require_once __DIR__ . '/compat_npc_addplayer.php';
+require_once __DIR__ . '/compat_input_mode.php';
 
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
@@ -750,6 +751,33 @@ PHP;
             echo "[ReNether] Already compatible: " . basename($path) . " / NPC AddPlayerPacket " . basename($member) . "\n";
         }
     }
+    // BedrockProtocol 64 returns the InputMode backed enum rather than
+    // the integer expected by older NGEssentials PlayerInputChangeEvent.
+    // Verify the PHAR's event and player field agree, then convert only the
+    // legacy numeric case; the newer enum-typed variant needs no changes.
+    if (basename($path) === 'NGEssentials.phar') {
+        $playerMember = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
+        $eventMember = 'src/NetherGames/NGEssentials/events/PlayerInputChangeEvent.php';
+        if (!isset($phar[$playerMember]) || !isset($phar[$eventMember])) {
+            fwrite(STDERR, "ERROR: Missing NGEssentials input-mode event/player classes.\n");
+            exit(1);
+        }
+        $playerSource = $updated[$playerMember] ?? $phar[$playerMember]->getContent();
+        $eventSource = $updated[$eventMember] ?? $phar[$eventMember]->getContent();
+        try {
+            $patched = renetherPatchLegacyInputMode($playerSource, $eventSource);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: NGEssentials InputMode: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+        if ($patched !== $playerSource) {
+            $updated[$playerMember] = $patched;
+            echo "[ReNether] Updated legacy InputMode enum->int conversion in NGPlayer\n";
+        } else {
+            echo "[ReNether] Already compatible: NGEssentials input-mode event\n";
+        }
+    }
+
     // Axolotl's PlayerListPacket (Bedrock 26.50) encodes mixed per-entry
     // add/remove types via ::create(array $entries). NetherGames' older
     // ::add()/::remove() wrappers no longer exist. Removal entries must
