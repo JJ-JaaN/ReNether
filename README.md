@@ -6,6 +6,31 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### Composer i opcache (26.60)
+
+Ako stariji starter javlja `GitDownloader.php`, `unable to read tree` ili
+`f9d8b40da3940cef8242b0da34ba41fe49ea7364 is gone`, problem je u
+Git checkoutu tog commita. Commit je potvrđeno dostupan na GitHubu, ali
+lokalni Git/Composer cache može biti nepotpun. Starter sada koristi
+`composer install --prefer-dist` uz originalni `composer.lock`,
+umjesto `--prefer-source`; **nemoj** prvo pokretati `composer update`.
+
+Starter popravlja stari apsolutni `opcache.so` build-host put
+(`/home/runner/work/PHP-Binaries/...`) u instaliranom PHP INI-ju.
+Upozorenje `Composer plugins have been disabled ... root` zasebno je
+od Composerova sigurnosnog režima; core instalacija eksplicitno koristi
+`--no-plugins`. Dugoročno pokreći server kao namjenski neprivilegirani
+Linux korisnik, ne kao root.
+
+Da primijeniš popravak na migracijskoj grani:
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+```
+
+
 **Migracijska grana za testiranje**: `feat/bedrock-26-60-axolotl-5-51-1`. To nije potvrda da originalni NetherGames pluginovi rade bez greške na novom protokolu. Migracija je izdvojena u PR prije spajanja na `main`.
 
 - Starter klonira izvorni `5.51.1` tag (provjereni commit `e881fc1`) u novi `upstream/axolotl-5.51.1/` i **ponovno gradi core** pri prvom pokretanju na novoj verziji. Staru 5.49.1 radnu kopiju ne resetira.
