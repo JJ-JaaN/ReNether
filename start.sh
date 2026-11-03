@@ -344,6 +344,29 @@ fi
 ' "$DATA/plugins/NGEssentials.phar" ||
   die "Plugin PHAR compatibility check failed; refusing to start with stale NGEssentials."
 
+# Independently check the two NPC spawning paths against the 26.60
+# AddPlayerPacket signature. This protects production logins from type crashes.
+"$PHP" -r '
+  require $argv[2];
+  $p = new Phar($argv[1]);
+  foreach ([
+    "src/NetherGames/NGEssentials/entity/custom/CustomHuman.php",
+    "src/NetherGames/NGEssentials/entity/CustomGeometryTrait.php"
+  ] as $member) {
+    if (!isset($p[$member])) {
+      fwrite(STDERR, "[ReNether] ERROR: Missing NPC PHAR member $member\n");
+      exit(1);
+    }
+    $source = $p[$member]->getContent();
+    if (renetherPatchNpcAddPlayer($source) !== $source) {
+      fwrite(STDERR, "[ReNether] ERROR: NPC AddPlayerPacket still has old 17-arg ABI in $member\n");
+      exit(1);
+    }
+  }
+  echo "[ReNether] Verified NPC AddPlayerPacket 26.60 passengerBlockData arguments\n";
+' "$DATA/plugins/NGEssentials.phar" "$ROOT/scripts/compat_npc_addplayer.php" ||
+  die "NGEssentials 26.60 NPC packet guard failed; refusing to boot."
+
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
 bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
