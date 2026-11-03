@@ -6,6 +6,30 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### NGEssentials crash: missing `Grpc\\Call` on the first server tick
+
+After `Done (1.603s)!`, older NGEssentials schedules
+`Grpc\\Call::drainCompletionQueue(PHP_INT_MIN)` every tick.
+The Axolotl PHP 8.4 runtime may not include `ext-grpc`, which leads to
+`Class "Grpc\\Call" not found` and shuts the server down.
+
+`scripts/compat_optional_grpc.php` keeps the completion-queue task if
+`Grpc\\Call::drainCompletionQueue` is available, otherwise logs a warning
+and skips only that task. No gRPC class emulation is used. The starter now
+verifies the updated guard, replay bootstrap check, and compressor method
+inside the **actual** `NGEssentials.phar` before running the server.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+This patch does not guarantee gRPC-dependent functionality. Re-enable the
+native gRPC extension when those features are needed; test BedWars login,
+matches and the shop separately.
+
 ### NGEssentials crash: libReplay ZstdCompressor (26.60)
 **Sljedeći mogući crash** nakon metode `getNetworkType()`:
 `Undefined constant "ZSTD_COMPRESS_LEVEL_DEFAULT"` iz `SingletonTrait`.
