@@ -6,6 +6,30 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### PlayerAuthInput crash: `InputMode` enum vs. legacy integer (Bedrock 26.60)
+
+If a connected player triggers
+`PlayerInputChangeEvent::__construct(): Argument #3 ($newInputMode) must be of type int, InputMode given`,
+the previously built `NGEssentials.phar` still expects numeric input modes.
+BedrockProtocol 64's `PlayerAuthInputPacket::getInputMode()` now
+returns the backed `InputMode` enum.
+
+`scripts/compat_input_mode.php` inspects `NGPlayer.php` and
+`PlayerInputChangeEvent.php` **inside the PHAR**. For an older
+integer-typed pair, the patcher reads `$packet->getInputMode()->value`
+so the event receives a number and avoids firing a false change event
+on every movement packet. For an already enum-typed pair it preserves
+the source unchanged. Unknown/mismatched type combinations abort the
+patch, rather than silently breaking event listeners. `start.sh`
+also checks the patched runtime PHAR before players connect.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
 ### NPC spawn crash: AddPlayerPacket::create() passengerBlockData (Bedrock 26.60)
 
 If the player successfully logs into `S-Lobby-2022` but NGEssentials
