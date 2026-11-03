@@ -6,6 +6,33 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### BedWars sublobby crash: 26.60 `LevelChunkPacket::create()` requires 8 arguments
+
+A player can log in and remain in the Hub, but loading `BWSublobby2024`
+may crash with `LevelChunkPacket::create(): 7 passed, exactly 8 expected`.
+BedrockProtocol 64 adds the `clientBiomeUpdate` boolean as the eighth
+argument to the synthetic empty-chunk packet sent by
+`NGPlayer::sendDimension()`. This should be `false` for that synthetic
+chunk, keeping the original chunk data and all saved worlds unchanged.
+
+`scripts/compat_level_chunk_26_60.php` converts the archived 6-argument
+and previously patched 7-argument calls directly to the correct 8-argument
+version, or leaves an already-correct call unchanged. The patcher runs on
+the existing `NGEssentials.phar`, and `start.sh` validates the actual
+PHAR before starting.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
+After logging in, verify that the BedWars queue successfully loads
+`BWSublobby2024` and eventually an arena without a PHP exception.
+This is a protocol-compatibility fix, not a guarantee that subsequent
+arena gameplay is already functional.
+
 ### BossBar crash: 26.60 `AddActorPacket::create()` requires 14 arguments
 
 When `RapidPoodleLDR` has joined the Hub and NGEssentials creates the
