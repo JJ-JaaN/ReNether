@@ -24,6 +24,8 @@ jobs:
           php -l scripts/compat_libreplay.php
           php -l scripts/compat_replay_zstd.php
           php -l scripts/compat_optional_grpc.php
+          php -l scripts/compat_npc_addplayer.php
+          php -l tests/npc_addplayer_26_60.php
           php -l tests/optional_grpc.php
           php -l tests/replay_zstd_fallback.php
           php -l tests/libreplay_compressor.php
@@ -41,5 +43,7 @@ jobs:
         run: php tests/replay_zstd_fallback.php
       - name: Optional gRPC callback tests
         run: php tests/optional_grpc.php
+      - name: Bedrock 26.60 NPC packet compatibility tests
+        run: php tests/npc_addplayer_26_60.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
