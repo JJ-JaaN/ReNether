@@ -323,6 +323,27 @@ fi
   "$DATA/plugins/NGEssentials.phar" "$DATA/plugins/$MINIGAME_PHAR" \
   ${SOCCER_PHAR:+"$SOCCER_PHAR"} ${SKYWARS_PHAR:+"$SKYWARS_PHAR"}
 
+# Verify that the actual PHAR used on boot contains the compatibility guards.
+# This fails during bootstrap, not two seconds into the server tick loop.
+"$PHP" -r '
+  $p = new Phar($argv[1]);
+  foreach ([
+    "src/NetherGames/NGEssentials/NGEssentials.php" =>
+      "ReNether: PHP gRPC extension unavailable",
+    "src/NetherGames/NGEssentials/player/enforcement/Enforcement.php" =>
+      "ReNether: replay recording unavailable (PHP ext-zstd missing)",
+    "vendor/nethergamesmc/libreplay/session/utils/ZstdCompressor.php" =>
+      "function getNetworkType("
+  ] as $member => $required) {
+    if (!isset($p[$member]) || !str_contains($p[$member]->getContent(), $required)) {
+      fwrite(STDERR, "[ReNether] ERROR: NGEssentials PHAR missing compatibility marker: $member\n");
+      exit(1);
+    }
+  }
+  echo "[ReNether] Verified NGEssentials 26.60 replay/gRPC compatibility guards\n";
+' "$DATA/plugins/NGEssentials.phar" ||
+  die "Plugin PHAR compatibility check failed; refusing to start with stale NGEssentials."
+
 # Install Zuri AC (explicit opt-in; first run is flag-only). Its
 # own script preserves the existing PHAR/config and handles NG_ENABLE_ZURI=0.
 bash "$ROOT/scripts/setup_zuri.sh" "$DATA" "$SOURCES" "$PHP" "$COMPOSER_PHAR" "$ZURI_ENABLED" "${NG_REBUILD:-0}"
