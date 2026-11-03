@@ -32,6 +32,7 @@ require_once __DIR__ . '/compat_optional_grpc.php';
 require_once __DIR__ . '/compat_npc_addplayer.php';
 require_once __DIR__ . '/compat_input_mode.php';
 require_once __DIR__ . '/compat_add_actor.php';
+require_once __DIR__ . '/compat_level_chunk_26_60.php';
 
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
@@ -659,40 +660,23 @@ PHP;
         exit(1);
     }
 
-    // Bedrock 26.50 requires a nullable subchunk-request limit followed by
-    // cacheEnabled and an array of blob hashes (seven arguments total).
-    // The NetherGames empty-chunk packet used the previous six-argument ABI.
+    // BedrockProtocol 64 (26.60) requires a final clientBiomeUpdate bool
+    // after the chunk bytes. Patch legacy 6- and 7-argument calls in the
+    // synthetic empty-chunk transfer helper, preserving existing worlds.
     $member = 'src/NetherGames/NGEssentials/player/NGPlayer.php';
     if (isset($phar[$member])) {
         $content = $updated[$member] ?? $phar[$member]->getContent();
-        $before = <<<'PHP'
-                    $session->sendDataPacket(LevelChunkPacket::create(
-                        new ChunkPosition($X, $Z),
-                        $dimensionId,
-                        $subChunkCount,
-                        false,
-                        null,
-                        $emptyChunk
-                    ));
-PHP;
-        $after = <<<'PHP'
-                    $session->sendDataPacket(LevelChunkPacket::create(
-                        new ChunkPosition($X, $Z),
-                        $dimensionId,
-                        $subChunkCount,
-                        null,
-                        false,
-                        [],
-                        $emptyChunk
-                    ));
-PHP;
-        if (str_contains($content, $after)) {
-            echo "[ReNether] Already compatible: " . basename($path) . " / LevelChunkPacket arguments\n";
-        } elseif (substr_count($content, $before) === 1) {
-            $updated[$member] = str_replace($before, $after, $content);
-        } else {
-            fwrite(STDERR, "ERROR: Unexpected empty LevelChunkPacket in $member; refusing change.\n");
+        try {
+            $patched = renetherPatchDimensionLevelChunk($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
             exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Updated NGEssentials LevelChunkPacket to eight arguments for 26.60\n";
+        } else {
+            echo "[ReNether] Already compatible: NGEssentials LevelChunkPacket 26.60\n";
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGPlayer in NGEssentials PHAR.\n");
