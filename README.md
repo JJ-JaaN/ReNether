@@ -7,6 +7,38 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
 ### NGEssentials crash: libReplay ZstdCompressor (26.60)
+**Sljedeći mogući crash** nakon metode `getNetworkType()`:
+`Undefined constant "ZSTD_COMPRESS_LEVEL_DEFAULT"` iz `SingletonTrait`.
+To znači da instancirani libReplay očekuje PHP `ext-zstd`, koja
+nije dostupna ili nije učitana u pokrenutom PHP-u.
+
+`scripts/compat_replay_zstd.php` sada mijenja samo uvjet za
+`new Replays(...)` u NGEssentials `Enforcement`. Ako PHP nema
+`ZSTD_COMPRESS_LEVEL_DEFAULT`, `zstd_compress()` ili
+`zstd_uncompress()`, logira upozorenje i **ne uključuje replay
+recording**; BedWars i ostale funkcije nastavljaju s bootom.
+Ne mijenja format snimki niti briše postojeće replay podatke.
+Ako je ekstenzija prisutna, postojeći recorder ostaje uključen.
+**Replay Cinema i snimanje neće raditi bez native ZSTD podrške.**
+
+Provjera istim PHP interpreterom kojim radi server:
+
+```bash
+cd ~/new-ng
+.runtime/php-axolotl-5.51.1/bin/php7/bin/php -r '
+var_dump(extension_loaded("zstd"),
+         defined("ZSTD_COMPRESS_LEVEL_DEFAULT"),
+         function_exists("zstd_compress"),
+         function_exists("zstd_uncompress"));
+'
+```
+
+Da bi replays stvarno radili, treba izgraditi/instalirati
+kompatibilan `ext-zstd` za Axolotlov PHP 8.4 ZTS runtime, a zatim
+ponovno testirati replay workflow. Nemoj `zstd_compress` zamjenjivati
+sa `gzcompress` jer bi postojeći i novi replay paketi mogli postati
+nekompatibilni.
+
 
 Ako `NGEssentials v2.42` padne s porukom
 `ZstdCompressor ... must ... implement ... Compressor::getNetworkType`,
