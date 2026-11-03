@@ -28,6 +28,7 @@ if ($argc < 2) {
 
 require_once __DIR__ . '/compat_libreplay.php';
 require_once __DIR__ . '/compat_replay_zstd.php';
+require_once __DIR__ . '/compat_optional_grpc.php';
 
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
@@ -406,6 +407,29 @@ PHP;
         }
     } elseif (basename($path) === 'NGEssentials.phar') {
         fwrite(STDERR, "ERROR: Missing NGEssentials enforcement replay bootstrap.\n");
+        exit(1);
+    }
+
+    // NGEssentials schedules Grpc\\Call::drainCompletionQueue() every tick.
+    // The Axolotl PHP binary may not ship ext-grpc. Guard that optional
+    // task while preserving behavior if gRPC is installed.
+    $member = 'src/NetherGames/NGEssentials/NGEssentials.php';
+    if (isset($phar[$member])) {
+        $content = $updated[$member] ?? $phar[$member]->getContent();
+        try {
+            $patched = renetherPatchOptionalGrpcDrain($content);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\\n");
+            exit(1);
+        }
+        if ($patched !== $content) {
+            $updated[$member] = $patched;
+            echo "[ReNether] Guarded optional gRPC queue task in " . basename($path) . "\\n";
+        } else {
+            echo "[ReNether] Already compatible: " . basename($path) . " / optional gRPC queue task\\n";
+        }
+    } elseif (basename($path) === 'NGEssentials.phar') {
+        fwrite(STDERR, "ERROR: Missing NGEssentials main entry for gRPC compatibility.\\n");
         exit(1);
     }
 
