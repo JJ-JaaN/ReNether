@@ -6,6 +6,28 @@ ReNether koristi originalni NetherGames BedWars i NGEssentials kod prilagođen n
 
 ## Migracija na Minecraft Bedrock 26.60 (Axolotl-PM 5.51.1)
 
+### BossBar crash: 26.60 `AddActorPacket::create()` requires 14 arguments
+
+When `RapidPoodleLDR` has joined the Hub and NGEssentials creates the
+slime-backed bossbar, a stale `NGEssentials.phar` may crash with
+`Too few arguments to function AddActorPacket::create(), 13 passed, exactly 14 expected`.
+BedrockProtocol 64 adds `?PassengerOfBlockData $passengerBlockData`
+as the 14th argument (typically `null` for a simple bossbar).
+
+`scripts/compat_add_actor.php` counts PHP argument tokens rather than
+using a regex that could confuse nested calls. It appends `null` only
+to 13-argument calls, retains already-correct 14-argument calls and
+rejects unknown shapes. The built-PHAR patcher checks BossBar and known
+NGEssentials custom actors, cosmetics and pets. `start.sh` also
+verifies the actual BossBar PHAR entry before launching.
+
+```bash
+cd ~/new-ng
+git pull --ff-only
+NG_ENABLE_ZURI=0 NG_BUILD_ONLY=1 bash ./start.sh
+NG_ENABLE_ZURI=0 NG_PORT=19133 bash ./start.sh 2>&1 | tee renether-26.60.log
+```
+
 ### PlayerAuthInput crash: `InputMode` enum vs. legacy integer (Bedrock 26.60)
 
 If a connected player triggers
