@@ -25,6 +25,8 @@ jobs:
           php -l scripts/compat_replay_zstd.php
           php -l scripts/compat_optional_grpc.php
           php -l scripts/compat_npc_addplayer.php
+          php -l scripts/compat_input_mode.php
+          php -l tests/input_mode_26_60.php
           php -l tests/npc_addplayer_26_60.php
           php -l tests/optional_grpc.php
           php -l tests/replay_zstd_fallback.php
@@ -45,5 +47,7 @@ jobs:
         run: php tests/optional_grpc.php
       - name: Bedrock 26.60 NPC packet compatibility tests
         run: php tests/npc_addplayer_26_60.php
+      - name: Bedrock 26.60 input-mode enum compatibility tests
+        run: php tests/input_mode_26_60.php
       - name: Verify license notices
         run: test -s ATTRIBUTION.md && test -s README.md
