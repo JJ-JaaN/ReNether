@@ -31,6 +31,7 @@ require_once __DIR__ . '/compat_replay_zstd.php';
 require_once __DIR__ . '/compat_optional_grpc.php';
 require_once __DIR__ . '/compat_npc_addplayer.php';
 require_once __DIR__ . '/compat_input_mode.php';
+require_once __DIR__ . '/compat_add_actor.php';
 
 $classes = ['TileDecoratedPot', 'TileCopperGolemStatue'];
 $oldSignature = 'addAdditionalSpawnData(CompoundTag $nbt, TypeConverter $typeConverter): void';
@@ -775,6 +776,43 @@ PHP;
             echo "[ReNether] Updated legacy InputMode enum->int conversion in NGPlayer\n";
         } else {
             echo "[ReNether] Already compatible: NGEssentials input-mode event\n";
+        }
+    }
+
+    // BedrockProtocol 64 added PassengerOfBlockData as the final
+    // AddActorPacket argument. Adapt all known archived NGEssentials
+    // actor-spawning paths (BossBar plus custom entities/cosmetics).
+    if (basename($path) === 'NGEssentials.phar') {
+        foreach ([
+            'src/NetherGames/NGEssentials/entity/BossBar.php',
+            'src/NetherGames/NGEssentials/entity/custom/EntityNPC.php',
+            'src/NetherGames/NGEssentials/entity/custom/CustomFakeBlock.php',
+            'src/NetherGames/NGEssentials/entity/custom/CustomFakeMovingBlock.php',
+            'src/NetherGames/NGEssentials/entity/pets/RideableTrait.php',
+            'src/NetherGames/NGEssentials/player/cosmetics/utils/CageEntity.php',
+            'src/NetherGames/NGEssentials/player/cosmetics/types/effect/EffectCosmetic.php',
+            'src/NetherGames/NGEssentials/commands/TestCommand.php',
+        ] as $member) {
+            if (!isset($phar[$member])) {
+                if (str_ends_with($member, '/BossBar.php')) {
+                    fwrite(STDERR, "ERROR: Missing NGEssentials BossBar in PHAR.\n");
+                    exit(1);
+                }
+                continue;
+            }
+            $original = $updated[$member] ?? $phar[$member]->getContent();
+            try {
+                $patched = renetherPatchAddActorPacket($original);
+            } catch (Throwable $e) {
+                fwrite(STDERR, "ERROR: " . basename($path) . " / $member: " . $e->getMessage() . "\n");
+                exit(1);
+            }
+            if ($patched !== $original) {
+                $updated[$member] = $patched;
+                echo "[ReNether] Updated AddActorPacket 26.60 arguments in " . basename($member) . "\n";
+            } else {
+                echo "[ReNether] Already compatible: AddActorPacket " . basename($member) . "\n";
+            }
         }
     }
 
